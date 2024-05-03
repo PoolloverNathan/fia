@@ -6,6 +6,6 @@
   };
 
   outputs = { self, nixpkgs }: {
-    packages.x86_64-linux.fia = import ./default.nix { pkgs = nixpkgs; };
+    packages.x86_64-linux.default = import ./default.nix { pkgs = nixpkgs.legacyPackages.x86_64-linux; };
   };
 }
