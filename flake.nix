@@ -1,13 +1,23 @@
 {
-  description = "A very basic flake";
-
-  inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=9155c3d38dce4d0a718ea58fc4a73c8981041497";
-    # flake-utils.url = "github:numtide/flake-utils";
-  };
-
-  outputs = { self, nixpkgs }: {
-    packages.x86_64-linux.default = import ./default.nix { pkgs = nixpkgs.legacyPackages.x86_64-linux; };
-    packages.aarch64-linux.default = import ./default.nix { pkgs = nixpkgs.legacyPackages.aarch64-linux; };
-  };
+  inputs.stddev.url = "github:PoolloverNathan/stddev";
+  outputs = {
+    self,
+    stddev,
+  }:
+    stddev {
+      name = "fia";
+      packages = system: pkgs: {
+        default = let
+          mf = (pkgs.lib.importTOML ./Cargo.toml).package;
+        in
+          pkgs.rustPlatform.buildRustPackage rec {
+            pname = mf.name;
+            version = mf.version;
+            cargoLock.lockFile = ./Cargo.lock;
+            src = pkgs.lib.cleanSource ./.;
+            nativeBuildInputs = [pkgs.pkg-config pkgs.nix pkgs.openssl pkgs.openssl.dev];
+            PKG_CONFIG_PATH = ["${pkgs.openssl.dev}/lib/pkgconfig/"];
+          };
+      };
+    };
 }
