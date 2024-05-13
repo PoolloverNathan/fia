@@ -4,8 +4,9 @@
     self,
     stddev,
   }:
-    stddev {
+    stddev rec {
       name = "fia";
+      # deps = pkgs: [pkgs.rustc ]
       packages = system: pkgs: {
         default = let
           mf = (pkgs.lib.importTOML ./Cargo.toml).package;
@@ -19,5 +20,6 @@
             PKG_CONFIG_PATH = ["${pkgs.openssl.dev}/lib/pkgconfig/"];
           };
       };
+      deps = pkgs: let p = packages pkgs.system pkgs; in p.default.buildInputs ++ p.default.nativeBuildInputs;
     };
 }
