@@ -1,3 +1,4 @@
+# vim: ft=nix ts=2 sts=2 sw=2 et
 {
   inputs.stddev.url = "github:PoolloverNathan/stddev";
   outputs = {
@@ -11,6 +12,7 @@
         default = let
           mf = (pkgs.lib.importTOML ./Cargo.toml).package;
         in
+          assert mf.name == name;
           pkgs.rustPlatform.buildRustPackage rec {
             pname = mf.name;
             version = mf.version;

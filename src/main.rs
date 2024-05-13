@@ -1,21 +1,63 @@
+#![allow(warnings)]
+
 use std::collections::HashMap;
 use std::process::exit;
 use serde::{Serialize, Deserialize};
+use std::path::PathBuf;
+use resolve_path::PathResolveExt as _;
+use std::fs::canonicalize;
+use url::Url;
 
-#[derive(Debug, Default, Serialize, Deserialize)]
-struct FiaConfig {
-    foo: String,
-    bar: Baz,
+#[derive(Debug, Serialize, Deserialize)]
+struct Repo {
+    origin: Url,
 }
-impl FiaConfig {
+trait Set: for<'de> Deserialize<'de> {
+    fn set<'a, 'b>(&'a mut self, path: impl Iterator<Item = &'b str>, arg: String);
+}
+impl<T: Set> Set for Vec<T> {
     fn set<'a, 'b>(&'a mut self, mut path: impl Iterator<Item = &'b str>, arg: String) {
         match path.next() {
-            Some("foo") => {
-                self.foo = arg;
+            None if arg == "" => {
+                self.drain(..);
+            },
+            None => {
+                error("overwriting vectors is unsupported");
+            },
+            Some(x) => match x.parse() {
+                Ok(x) => if x == self.len() {
+                    if let None = path.next() {
+                        if arg != "" {
+                            self.push(serde_qs::from_str(&arg).unwrap_or_else(|e| error(format!("{e}"))));
+                        }
+                    } else {
+                        error("cannot append updates to a vec")
+                    }
+                } else if x > self.len() {
+                    error("vec assignments must be at most one past the end") 
+                } else {
+                    let mut path = path.peekable();
+                    if let None = path.peek() {
+                        if arg == "" {
+                            self.remove(x);
+                        } else {
+                            self[x] = serde_qs::from_str(&arg).unwrap_or_else(|e| error(format!("{e}")));
+                        }
+                    } else {
+                        self[x].set(path, arg)
+                    }
+                },
+                Err(e) => error(format!("invalid index {x}\n{e}")),
             }
-            Some("bar") => {
-                self.bar.set(path, arg);
-            }
+        }
+    }
+}
+impl Set for Repo {
+    fn set<'a, 'b>(&'a mut self, mut path: impl Iterator<Item = &'b str>, arg: String) {
+        match path.next() {
+            Some("origin") => {
+                self.origin = Url::parse(&arg).unwrap_or_else(|e| error(format!("invalid url for origin\n{e}")))
+            },
             Some(k) => error(format!("no such {k}")),
             None => {
                 *self = serde_qs::from_str(&arg).unwrap_or_else(|e| error(format!("{e}")))
@@ -23,19 +65,28 @@ impl FiaConfig {
         }
     }
 }
+
 #[derive(Debug, Default, Serialize, Deserialize)]
-struct Baz {
-    baz: String,
+struct FiaConfig {
+    #[serde(default = "num_cpus::get")]
+    jobs: usize,
+    repos: Vec<Repo>,
 }
-impl Baz {
+impl Set for FiaConfig {
     fn set<'a, 'b>(&'a mut self, mut path: impl Iterator<Item = &'b str>, arg: String) {
         match path.next() {
-            Some("baz") => {
-                self.baz = arg;
+            // Some("figura_dir") => {
+            //     self.figura_dir = canonicalize(arg).unwrap_or_else(|e| error(format!("cannot canonicalize figura_dir\n{e}")));
+            // }
+            Some("jobs") => {
+                self.jobs = arg.parse().unwrap_or_else(|e| error(format!("invalid integer for jobs\n{e}")));
             }
+            Some("repos") => {
+                self.repos.set(path, arg);
+            },
             Some(k) => error(format!("no such {k}")),
             None => {
-                *self = serde_qs::from_str(&arg).unwrap_or_else(|e| error(format!("config format error\n{e}")))
+                *self = serde_qs::from_str(&arg).unwrap_or_else(|e| error(format!("{e}")))
             }
         }
     }
@@ -45,6 +96,7 @@ enum FiaAction {
     Help,
     Reconfigure(Box<dyn FnOnce(&mut FiaConfig)>),
     HelloWorld(Option<String>),
+    // CreateAvatar(&str)
 }
 
 fn update_in_place<T>(a: &mut T, f: impl FnOnce(T) -> T) {
