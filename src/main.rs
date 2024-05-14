@@ -99,7 +99,9 @@ impl std::str::FromStr for Jobs {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct FiaConfig {
+    #[serde(default)]
     jobs: Jobs,
+    #[serde(default)]
     repos: Vec<Repo>,
 }
 impl Set for FiaConfig {
