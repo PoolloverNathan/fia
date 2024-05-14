@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use resolve_path::PathResolveExt as _;
 use std::fs::canonicalize;
 use url::Url;
+use std::io::{stdout, IsTerminal};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Repo {
@@ -193,13 +194,20 @@ impl FiaAction {
                     *c = Default::default();
                 }))
             },
+            (Reconfigure(f), 'l') => {
+                update_in_place(f, |f| Box::new(|c| {
+                    let Some(mut h) = std::env::home_dir() else { error("homeless :(") };
+                    h.push(".config/fia");
+                    println!("{}", h.display());
+                }))
+            },
             (Reconfigure(f), 'w') => {
                 update_in_place(f, |f| Box::new(|c| {
                     let Some(mut h) = std::env::home_dir() else { error("homeless :(") };
                     h.push(".config");
-                    std::fs::create_dir_all(&h);
+                    std::fs::create_dir_all(&h).unwrap_or_else(|e| error(format!("failed to create config directory\n{e}")));
                     h.push("fia");
-                    std::fs::write(h, serde_qs::to_string(c).unwrap_or_else(|e| error(format!("failed to dump config\n{e}"))));
+                    std::fs::write(h, serde_qs::to_string(c).unwrap_or_else(|e| error(format!("failed to dump config\n{e}")))).unwrap_or_else(|e| error(format!("failed to write config\n{e}")));
                 }))
             },
             _ => error(format!("unexpected option '{c}'"))
@@ -228,11 +236,41 @@ struct FiaState {
 }
 
 fn error(msg: impl std::borrow::Borrow<str>) -> ! {
-    eprintln!("[1;31merror[0m: {}", msg.borrow().replace("\n", "\n     - "));
+    eprintln!(
+        "{} {}",
+        if stdout().is_terminal() {
+            "[1;31merror:[0m"
+        } else {
+            "error:"
+        },
+        msg.borrow().replace(
+            "\n",
+            if stdout().is_terminal() {
+                "\n     [1;31m-[0m "
+            } else {
+                "\n     - "
+            }
+        )
+    );
     exit(1)
 }
 fn warn(msg: impl std::borrow::Borrow<str>) -> () {
-    eprintln!("[1;33mwarn[0m: {}", msg.borrow().replace("\n", "\n    - "));
+    eprintln!(
+        "{} {}",
+        if stdout().is_terminal() {
+            "[1;33mwarn:[0m"
+        } else {
+            "warn:"
+        },
+        msg.borrow().replace(
+            "\n",
+            if stdout().is_terminal() {
+                "\n    [1;33m-[0m "
+            } else {
+                "\n     - "
+            }
+        )
+    );
 }
 
 fn unwrap_borrow_or<'a, T: ?Sized>(opt: &'a Option<impl std::borrow::Borrow<T> + 'a>, val: &'a (impl std::borrow::Borrow<T> + 'a)) -> &'a T {
@@ -244,21 +282,22 @@ fn unwrap_borrow_or<'a, T: ?Sized>(opt: &'a Option<impl std::borrow::Borrow<T> +
 
 fn main() -> ! {
     let mut state: FiaState = FiaState::default();
+    let mut args = std::env::args();
+    let progname: std::borrow::Cow<str> = args.next().map(Into::into).unwrap_or(env!("pname").into());
     if let Some(mut h) = std::env::home_dir() {
         h.push(".config/fia");
-        if let Ok(t) = std::fs::read_to_string(h) {
-            match serde_qs::from_str(&t) {
+        match std::fs::read_to_string(h) {
+            Ok(t) => match serde_qs::from_str(&t) {
                 Ok(d) => {
                     state.config = d;
                 }
                 Err(e) => {
                     warn(format!("persistent config is invalid\n{e}"))
                 }
-            }
+            },
+            Err(e) => warn(format!("cannot open config\n{e}\nto regenerate config, run `{progname} Rw`"))
         }
     }
-    let mut args = std::env::args();
-    let progname: std::borrow::Cow<str> = args.next().map(Into::into).unwrap_or(env!("pname").into());
     for c in args.next().unwrap_or_default().chars() {
         match c {
             'a'..='z' => match state.actions.last_mut() {
