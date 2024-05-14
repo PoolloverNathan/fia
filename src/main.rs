@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::process::exit;
+use std::str::FromStr;
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 use resolve_path::PathResolveExt as _;
@@ -66,10 +67,39 @@ impl Set for Repo {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+#[repr(transparent)]
+struct Jobs(usize);
+impl Default for Jobs {
+    fn default() -> Jobs {
+        Jobs(num_cpus::get())
+    }
+}
+impl Into<usize> for Jobs {
+    fn into(self) -> usize {
+        self.0
+    }
+}
+impl From<usize> for Jobs {
+    fn from(j: usize) -> Self {
+        Jobs(j)
+    }
+}
+impl std::str::FromStr for Jobs {
+    type Err = <usize as FromStr>::Err;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "+" {
+            Ok(Default::default())
+        } else {
+            s.parse().map(Self)
+        }
+    }
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct FiaConfig {
-    #[serde(default = "num_cpus::get")]
-    jobs: usize,
+    jobs: Jobs,
     repos: Vec<Repo>,
 }
 impl Set for FiaConfig {
@@ -164,9 +194,9 @@ impl FiaAction {
             (Reconfigure(f), 'w') => {
                 update_in_place(f, |f| Box::new(|c| {
                     let Some(mut h) = std::env::home_dir() else { error("homeless :(") };
-                    h.push("/.config");
+                    h.push(".config");
                     std::fs::create_dir_all(&h);
-                    h.push("/fia");
+                    h.push("fia");
                     std::fs::write(h, serde_qs::to_string(c).unwrap_or_else(|e| error(format!("failed to dump config\n{e}"))));
                 }))
             },
@@ -199,6 +229,9 @@ fn error(msg: impl std::borrow::Borrow<str>) -> ! {
     eprintln!("[1;31merror[0m: {}", msg.borrow().replace("\n", "\n     - "));
     exit(1)
 }
+fn warn(msg: impl std::borrow::Borrow<str>) -> () {
+    eprintln!("[1;33mwarn[0m: {}", msg.borrow().replace("\n", "\n    - "));
+}
 
 fn unwrap_borrow_or<'a, T: ?Sized>(opt: &'a Option<impl std::borrow::Borrow<T> + 'a>, val: &'a (impl std::borrow::Borrow<T> + 'a)) -> &'a T {
     match opt {
@@ -210,14 +243,14 @@ fn unwrap_borrow_or<'a, T: ?Sized>(opt: &'a Option<impl std::borrow::Borrow<T> +
 fn main() -> ! {
     let mut state: FiaState = FiaState::default();
     if let Some(mut h) = std::env::home_dir() {
-        h.push("/.config/fia");
+        h.push(".config/fia");
         if let Ok(t) = std::fs::read_to_string(h) {
             match serde_qs::from_str(&t) {
                 Ok(d) => {
                     state.config = d;
                 }
                 Err(e) => {
-                    error(format!("persistent config is invalid\n{e}"))
+                    warn(format!("persistent config is invalid\n{e}"))
                 }
             }
         }
