@@ -152,27 +152,35 @@ impl FiaAction {
                 let mut p: Vec<&str> = vec![];
                 loop {
                     match args.next() {
-                        None => error("need path element or = for Rc"),
                         Some(k) => {
                             if k == "=" {
                                 match args.next() {
                                     None => error("need value for Rc"),
-                                    Some(v) => update_in_place(f, |f| Box::new(|c| {
-                                        f(c);
-                                        c.set(p.iter().copied(), v);
-                                        for e in p {
-                                            // safety? absolutely not!
-                                            unsafe {
-                                                Box::<str>::from_raw(std::mem::transmute(e));
+                                    Some(v) => update_in_place(
+                                        f,
+                                        |f| Box::new(
+                                            |c| {
+    // this is actually 11 times more indented
+    f(c);
+    c.set(p.iter().copied(), v);
+    for e in p {
+        // Safety: absolutely not
+        unsafe {
+            Box::<str>::from_raw(
+                std::mem::transmute(e)
+            );
+        }
+    }
                                             }
-                                        }
-                                    }))
+                                        )
+                                    )
                                 };
                                 break
                             } else {
                                 p.push(Box::leak(k.into()));
                             }
                         }
+                        None => error("need path element or = for Rc"),
                     }
                 }
             },
