@@ -11,5 +11,12 @@ resolve-path = "0.1.0"
 serde = { version = "1.0.199", features = ["derive"] }
 serde_qs = "0.13.0"
 url = { version = "2.5.0", features = ["serde"] }
-# tokio = { version = "1.37.0", features = ["macros", "full"] }
-# websocket = "0.27.1"
+tokio = { version = "1.37.0", features = ["macros", "full"] }
+websocket = "0.27.1"
+clap = { version = "4.5.17", features = ["derive"] }
+quartz_nbt = { version = "0.2.9", features = ["serde"] }
+
+[features]
+backend = []
+unpack = []
+full = ["backend", "unpack"]

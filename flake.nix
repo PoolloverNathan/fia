@@ -8,8 +8,8 @@
     stddev rec {
       name = "fia";
       # deps = pkgs: [pkgs.rustc ]
-      packages = system: pkgs: {
-        default = let
+      packages = system: pkgs: let
+        mkPackage = features: let
           mf = (pkgs.lib.importTOML ./Cargo.toml).package;
         in
           assert mf.name == name;
@@ -20,7 +20,13 @@
             src = pkgs.lib.cleanSource ./.;
             nativeBuildInputs = [pkgs.pkg-config pkgs.nix pkgs.openssl pkgs.openssl.dev];
             PKG_CONFIG_PATH = ["${pkgs.openssl.dev}/lib/pkgconfig/"];
+            cargoBuildFlags = pkgs.lib.optional (features != []) "--features=${builtins.toString features}";
           };
+      in {
+        default = mkPackage [];
+        withUnpack = mkPackage ["unpack"];
+        withBackend = mkPackage ["backend"];
+        full = mkPackage ["full"];
       };
       deps = pkgs: let p = packages pkgs.system pkgs; in p.default.buildInputs ++ p.default.nativeBuildInputs;
     };
