@@ -15,6 +15,8 @@ tokio = { version = "1.37.0", features = ["macros", "full"] }
 websocket = "0.27.1"
 clap = { version = "4.5.17", features = ["derive"] }
 quartz_nbt = { version = "0.2.9", features = ["serde"] }
+png = "0.17.13"
+flate2 = "1.0.33"
 
 [features]
 backend = []

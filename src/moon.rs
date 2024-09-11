@@ -51,7 +51,7 @@ pub struct Metadata {
 #[serde(untagged)]
 pub enum Authors {
     Author(String),
-    Authors(Box<[String]>),
+    Authors(Vec<String>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]

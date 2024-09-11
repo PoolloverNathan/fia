@@ -57,6 +57,21 @@ enum Action {
         #[arg(short, long, default_value = ".")]
         out: PathBuf,
     },
+    #[command(about = "Rewrites and recompresses an avatar file.")]
+    Repack {
+        #[arg()]
+        file: PathBuf,
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+        #[arg(short = 'z', long)]
+        compress: Option<Option<u32>>,
+        #[arg(short = 'Z', long, conflicts_with = "compress")]
+        no_compress: bool,
+        #[arg(long)]
+        if_smaller: bool,
+        #[arg(short = 'A', long)]
+        add_author: Vec<String>,
+    },
     #[cfg(feature = "backend")]
     #[command(about = "Runs a backend.")]
     Backend {
@@ -64,16 +79,19 @@ enum Action {
     },
 }
 
-fn getMoon(path: &Path) -> io::Result<Moon> {
+fn get_moon_with_name(path: &Path) -> io::Result<(Moon, String)> {
     let mut file = File::open(path)?;
-    let (data, _): (Moon, _) = quartz_nbt::serde::deserialize_from(&mut file, quartz_nbt::io::Flavor::GzCompressed).unwrap_or_else(|m| panic!("moon data corrputed due to {m:?}"));
+    let data: (Moon, _) = quartz_nbt::serde::deserialize_from(&mut file, quartz_nbt::io::Flavor::GzCompressed).unwrap_or_else(|m| panic!("moon data corrputed due to {m:?}"));
     Ok(data)
+}
+fn get_moon(path: &Path) -> io::Result<Moon> {
+    get_moon_with_name(path).map(|d| d.0)
 }
 
 fn main() -> io::Result<()> {
     match Action::parse() {
         Action::Parse { moon } => {
-            let data = getMoon(&moon)?;
+            let data = get_moon(&moon)?;
             println!("{data:?}");
         }
         Action::Push { .. } => todo!(),
@@ -81,7 +99,7 @@ fn main() -> io::Result<()> {
         Action::Pack { .. } => todo!(),
         #[cfg(feature = "unpack")]
         Action::Unpack { file, out } => {
-            let Moon { textures: moon::Textures { src, .. }, scripts, animations, models, metadata } = getMoon(&file)?;
+            let Moon { textures: moon::Textures { src, .. }, scripts, animations, models, metadata } = get_moon(&file)?;
             let mut files = HashMap::<PathBuf, &[u8]>::new();
             for (path, data) in &src {
                 let mut path = out.join(Path::new(&(path.to_owned() + ".png")));
@@ -124,6 +142,50 @@ fn main() -> io::Result<()> {
             }
             eprintln!("wrote {written} files");
             std::process::exit(fails.0.into())
+        }
+        Action::Repack { file, out, add_author, compress, no_compress, if_smaller } => {
+            eprint!("reading moon");
+            let (mut moon, name) = get_moon_with_name(&file)?;
+            if add_author.len() > 0 {
+                eprint!("\rupdating authors\x1b[K");
+                let authors: &mut moon::Authors = &mut moon.metadata.authors;
+                // normalize
+                let vec: &mut Vec<String> = match authors {
+                    moon::Authors::Authors(ref mut vec) => vec,
+                    moon::Authors::Author(_) => {
+                        let mut new_authors = moon::Authors::Authors(vec![]);
+                        // ah, the ol' authorship switcharoo
+                        let moon::Authors::Author(a) = std::mem::replace(authors, moon::Authors::Authors(vec![])) else { unreachable!() };
+                        let moon::Authors::Authors(ref mut vec) = authors else { unreachable!() };
+                        vec.push(a);
+                        vec
+                    }
+                };
+                vec.extend(add_author);
+                drop(vec);
+            }
+            eprint!("\rcalculating compression level\x1b[K");
+            use quartz_nbt::serde as qs;
+            use flate2::Compression;
+            let compression = if no_compress {
+                Compression::none()
+            } else {
+                match compress {
+                    Some(Some(n)) => Compression::new(n),
+                    Some(None)    => Compression::best(),
+                    None          => Compression::default(),
+                }
+            };
+            let flavor = quartz_nbt::io::Flavor::GzCompressedWith(compression);
+            if if_smaller {
+                eprint!("\rpretending to serialize\x1b[K");
+                let data = qs::serialize(&moon, Some(&name), flavor);
+            } else {
+                eprint!("\ropening file\x1b[K");
+                let mut file = File::create(out.as_deref().unwrap_or(&file))?;
+                eprint!("\rwriting back modified data\x1b[K");
+                qs::serialize_into(&mut file, &moon, Some(&name), flavor);
+            }
         }
         #[cfg(feature = "backend")]
         Action::Backend { .. } => todo!(),
