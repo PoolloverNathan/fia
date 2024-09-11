@@ -1,71 +1,72 @@
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use serde::{Serialize, Deserialize};
+use quartz_nbt::serde::Array;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Moon {
-    textures: Textures,
-    // scripts: HashMap<String, Box<OsStr>>,
-    animations: Box<[Animation]>,
-    models: ModelPart,
-    metadata: Metadata,
+    pub textures: Textures,
+    pub scripts: HashMap<String, Array<Vec<u8>>>,
+    pub animations: Box<[Animation]>,
+    pub models: ModelPart,
+    pub metadata: Metadata,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Textures {
-    // src: HashMap<String, Box<[u8]>>,
-    data: Box<[TextureData]>,
+    pub src: HashMap<String, Array<Vec<u8>>>,
+    pub data: Box<[TextureData]>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TextureData {
-    d: String,
+    pub d: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Animation {
-    r#loop: Option<Loop>,
-    name: String,
-    ovr: Option<u8>,
-    mdl: String,
-    len: Option<f64>,
+    pub r#loop: Option<Loop>,
+    pub name: String,
+    pub ovr: Option<u8>,
+    pub mdl: String,
+    pub len: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum Loop {
+pub enum Loop {
     Loop,
     Hold,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Metadata {
-    authors: Authors,
-    color: String,
-    name: String,
-    ver: String,
+pub struct Metadata {
+    pub authors: Authors,
+    pub color: String,
+    pub name: String,
+    pub ver: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-enum Authors {
+pub enum Authors {
     Author(String),
     Authors(Box<[String]>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ModelPart {
-    name: String,
+pub struct ModelPart {
+    pub name: String,
     #[serde(default)]
-    chld: Box<[ModelPart]>,
+    pub chld: Box<[ModelPart]>,
     // anim: Option<TODO>,
-    rot: Option<[f64; 3]>,
-    piv: Option<[f64; 3]>,
-    pt: Option<ParentType>,
+    pub rot: Option<[f64; 3]>,
+    pub piv: Option<[f64; 3]>,
+    pub pt: Option<ParentType>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum ParentType {
+pub enum ParentType {
     None,
 
     // Body
