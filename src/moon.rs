@@ -41,8 +41,12 @@ pub enum Loop {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Metadata {
+    #[serde(default)]
     pub authors: Authors,
+    #[serde(default)]
     pub color: String,
+    #[serde(default)]
+    pub description: String,
     pub name: String,
     pub ver: String,
 }
@@ -52,6 +56,11 @@ pub struct Metadata {
 pub enum Authors {
     Author(String),
     Authors(Vec<String>),
+}
+impl Default for Authors {
+    fn default() -> Self {
+        Authors::Authors(vec![])
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
