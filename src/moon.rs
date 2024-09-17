@@ -5,16 +5,25 @@ use quartz_nbt::serde::Array;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Moon {
+    #[serde(default)]
     pub textures: Textures,
+    #[serde(default)]
     pub scripts: HashMap<String, Array<Vec<u8>>>,
-    pub animations: Box<[Animation]>,
+    #[serde(default)]
+    pub animations: Vec<Animation>,
+    #[serde(default)]
     pub models: ModelPart,
+    #[serde(default)]
+    pub resources: HashMap<String, Array<Vec<u8>>>,
+    #[serde(default)]
     pub metadata: Metadata,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Textures {
+    #[serde(default)]
     pub src: HashMap<String, Array<Vec<u8>>>,
+    #[serde(default)]
     pub data: Box<[TextureData]>,
 }
 
@@ -25,11 +34,16 @@ pub struct TextureData {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Animation {
+    #[serde(default)]
     pub r#loop: Option<Loop>,
+    #[serde(default)]
     pub name: String,
-    pub ovr: Option<u8>,
+    #[serde(default)]
+    pub ovr: u8,
+    #[serde(default)]
     pub mdl: String,
-    pub len: Option<f64>,
+    #[serde(default)]
+    pub len: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -48,6 +62,7 @@ pub struct Metadata {
     #[serde(default)]
     pub description: String,
     pub name: String,
+    pub description: String,
     pub ver: String,
 }
 
@@ -63,14 +78,17 @@ impl Default for Authors {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct ModelPart {
     pub name: String,
     #[serde(default)]
     pub chld: Box<[ModelPart]>,
     // anim: Option<TODO>,
+    #[serde(default)]
     pub rot: Option<[f64; 3]>,
+    #[serde(default)]
     pub piv: Option<[f64; 3]>,
+    #[serde(default)]
     pub pt: Option<ParentType>,
 }
 
