@@ -72,27 +72,26 @@ enum Action {
         out: Option<PathBuf>,
         #[arg(short = 'z', long)]
         compress: Option<Option<u32>>,
-        #[arg(short = 'Z', long, conflicts_with = "compress")]
+        #[arg(short = 'l', long, conflicts_with = "compress")]
         no_compress: bool,
         #[arg(short = 'w', long, conflicts_with = "if_smaller")]
         if_smaller: bool,
-        #[arg(short = 'A', long, conflicts_with = "if_smaller")]
+        #[arg(short = 'p', long, conflicts_with = "if_smaller")]
         add_author: Vec<String>,
-        #[arg(short = 's', long, conflicts_with = "if_smaller")]
+        #[arg(short = 'i', long, conflicts_with = "if_smaller")]
         add_script: Vec<String>,
-        #[arg(short = 't', long, conflicts_with = "if_smaller")]
+        #[arg(short = 'k', long, conflicts_with = "if_smaller")]
         add_texture: Vec<String>,
         #[arg(short = 'e', long, alias = "edit", conflicts_with = "if_smaller")]
         edit_script: Vec<String>,
         #[arg(short = 'r', long, conflicts_with = "if_smaller")]
         remove_script: Vec<String>,
-        #[arg(short = 'R', long, conflicts_with = "if_smaller")]
+        #[arg(short = 's', long, conflicts_with = "if_smaller")]
         remove_texture: Vec<String>,
     },
     #[cfg(feature = "backend")]
     #[command(about = "Runs a Figura-compatible backend.")]
     Backend {
-        
     },
 }
 
@@ -115,7 +114,22 @@ fn main() -> io::Result<()> {
                 println!("{moon:?}");
             } else {
                 println!("\x1b[1;4m{}\x1b[21;22;24m", moon.metadata.name);
-                println!("{}", moon.metadata.description);
+                if moon.metadata.description != "" {
+                    let mut desc: &str = (&*moon.metadata.description).into();
+                    if !verbose {
+                        if let Some(size) = desc.find('\n') {
+                            // Safety:
+                            // * Decreasing the length of a string is safe
+                            // * `str::find` always returns a value less than length
+                            // Rationale: Avoids an allocation
+                            unsafe {
+                                let ptr2: &mut (*const (), usize) = std::mem::transmute(&mut desc);
+                                debug_assert!(size <= ptr2.1);
+                                ptr2.1 = size;
+                            }
+                        }
+                    }
+                }
                 // println!("\x1b[1mAuthors:\x1b[21;22m {}");
                 if !moon.textures.src.is_empty() {
                     if verbose {
@@ -126,7 +140,7 @@ fn main() -> io::Result<()> {
                             println!("• \x1b[1m{name}\x1b[21;22;24m {}B", data.len());
                         }
                     } else {
-                        println!("• \x1b[1m{} texture{}", moon.textures.src.len(), if moon.textures.src.len() == 1 { "s" } else { "" });
+                        println!("• \x1b[1m{} texture{}", moon.textures.src.len(), if moon.textures.src.len() == 1 { "" } else { "s" });
                     }
                 }
                 if !moon.scripts.is_empty() {
@@ -138,7 +152,7 @@ fn main() -> io::Result<()> {
                             println!("• \x1b[1m{name}\x1b[21;22;24m {}b", data.len());
                         }
                     } else {
-                        println!("• \x1b[1m{} scripts{}", moon.scripts.len(), if moon.scripts.len() == 1 { "s" } else { "" });
+                        println!("• \x1b[1m{} script{}", moon.scripts.len(), if moon.scripts.len() == 1 { "" } else { "s" });
                     }
                 }
             }
@@ -146,7 +160,7 @@ fn main() -> io::Result<()> {
         Action::Pack { .. } => todo!(),
         #[cfg(feature = "unpack")]
         Action::Unpack { file, out } => {
-            let Moon { textures: moon::Textures { src, .. }, scripts, animations, models, metadata } = get_moon(&file)?;
+            let Moon { textures: moon::Textures { src, .. }, scripts, animations, models, metadata, resources } = get_moon(&file)?;
             let mut files = HashMap::<PathBuf, &[u8]>::new();
             for (path, data) in &src {
                 let mut path = out.join(Path::new(&(path.to_owned() + ".png")));

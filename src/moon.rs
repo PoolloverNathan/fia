@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use serde::{Serialize, Deserialize};
 use quartz_nbt::serde::Array;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Moon {
     #[serde(default)]
     pub textures: Textures,
@@ -19,7 +19,7 @@ pub struct Moon {
     pub metadata: Metadata,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Textures {
     #[serde(default)]
     pub src: HashMap<String, Array<Vec<u8>>>,
@@ -27,12 +27,12 @@ pub struct Textures {
     pub data: Box<[TextureData]>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct TextureData {
     pub d: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Animation {
     #[serde(default)]
     pub r#loop: Option<Loop>,
@@ -53,16 +53,17 @@ pub enum Loop {
     Hold,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Metadata {
     #[serde(default)]
     pub authors: Authors,
     #[serde(default)]
     pub color: String,
     #[serde(default)]
-    pub description: String,
     pub name: String,
+    #[serde(default)]
     pub description: String,
+    #[serde(default)]
     pub ver: String,
 }
 
