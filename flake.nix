@@ -191,6 +191,7 @@
                   lib.crossCompile' {
                     src = ./.;
                     inherit pkgs target;
+                    attrs.FOKDIR = ./foks;
                     attrs.cargoBuildFlags = lib.tagTrace "cargoBuildFlags" (
                       pkgs.lib.concatMap (feature: [
                         "--feature"

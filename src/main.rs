@@ -9,8 +9,9 @@ use std::io::{self, stdout, IsTerminal};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::str::FromStr;
+use base64::{Engine as _, prelude::BASE64_STANDARD};
 use bbmodel::BBModel;
-use clap::{Parser, Subcommand};
+use clap::{ArgGroup, Parser, Subcommand};
 use moon::Moon;
 use quartz_nbt::serde::Array;
 use resolve_path::PathResolveExt as _;
@@ -92,6 +93,17 @@ enum Action {
     #[cfg(feature = "backend")]
     #[command(about = "Runs a Figura-compatible backend.")]
     Backend {
+    },
+    #[command(hide = true, group = ArgGroup::new("image").multiple(false))]
+    Fok {
+        #[arg(short, long, group = "image")]
+        stock: bool,
+        #[arg(short = '1', long, group = "image")]
+        first: bool,
+        #[arg(short = '2', long, group = "image")]
+        second: bool,
+        #[arg(short = '3', long, group = "image")]
+        third: bool,
     },
 }
 
@@ -259,6 +271,19 @@ fn main() -> io::Result<()> {
         }
         #[cfg(feature = "backend")]
         Action::Backend { .. } => todo!(),
+        Action::Fok { stock, first, second, third } => {
+            let mut path = Vec::<u8>::from(env!("FOKDIR"));
+            path.extend_from_slice(b"/"); // needed to concatenate paths
+            path.extend_from_slice(match (stock, first, second, third) {
+                (false, false, false, false) => b"seal.png"  as &[u8],
+                (true,  false, false, false) => b"fok.png"   as &[u8],
+                (false, true,  false, false) => b"seal1.png" as &[u8],
+                (false, false, true,  false) => b"seal2.png" as &[u8],
+                (false, false, false, true)  => b"seal3.png" as &[u8],
+                _ => unreachable!(),
+            });
+            println!("\x1b_Gf=100,t=f,a=T,r=10;{}\x1b\\", BASE64_STANDARD.encode(&path));
+        },
     }
     Ok(())
 }
