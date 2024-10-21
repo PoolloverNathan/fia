@@ -67,8 +67,12 @@
             (fenixPkgs.targets.${target}.toolchainOf toolchainData).rust-std
           ];
         #{{{2 tagTrace
+        /*
         tagTrace = tag: value: __trace "╔${tag}" (__deepSeq value (__trace "╚${tag}" value));
         tagTrace' = tag: value: __trace "┌${tag}" (__seq value (__trace "└${tag}" value));
+        */
+        tagTrace = tag: value: value;
+        tagTrace' = tag: value: value;
         #{{{2 crossCompile
         crossCompile =
           {
