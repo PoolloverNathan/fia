@@ -1,4 +1,7 @@
 #![allow(warnings)]
+#![deny(missing_docs)]
+
+//! Various CLI utilities for Figura.
 
 mod bbmodel;
 mod moon;
@@ -11,90 +14,173 @@ use std::process::exit;
 use std::str::FromStr;
 use base64::{Engine as _, prelude::BASE64_STANDARD};
 use bbmodel::BBModel;
-use clap::{ArgGroup, Parser, Subcommand};
+use clap::{Args, ArgGroup, Parser, Subcommand};
 use moon::Moon;
 use quartz_nbt::serde::Array;
 use resolve_path::PathResolveExt as _;
 use serde::{Serialize, Deserialize};
 use url::Url;
 
-#[derive(Debug, Parser)]
-enum Action {
-    #[command(about = "Uploads an avatar (or compiled moon, in the full version) to the Figura backend.")]
+/// Set of modifications to perform to avatar data.
+#[derive(Args, Clone, Debug, Default, PartialEq, Eq)]
+pub struct MoonModifications {
+    /// Add an avatar author (authors cannot be removed for obvious reasons).
+    #[arg(short = 'p', long, value_name = "AUTHOR")]
+    pub add_author: Vec<String>,
+    /// Add or replace a script.
+    #[arg(short = 'i', long, value_name = "\x08[NAME=]<PATH")]
+    pub add_script: Vec<String>,
+    /// Add or replace a texture.
+    #[arg(short = 'k', long, value_name = "\x08[NAME=]<PATH")]
+    pub add_texture: Vec<String>,
+    /// Interactively edit a script (leaving a copy in the current working directory).
+    #[arg(short = 'e', long, alias = "edit", value_name = "NAME")]
+    pub edit_script: Vec<String>,
+    /// Delete a script.
+    #[arg(short = 'r', long, value_name = "NAME")]
+    pub remove_script: Vec<String>,
+    /// Delete a texture.
+    #[arg(short = 's', long, value_name = "NAME")]
+    pub remove_texture: Vec<String>,
+}
+
+impl MoonModifications {
+    fn apply(self, moon: &mut Moon) {
+        if self.add_author.len() > 0 {
+            let authors: &mut moon::Authors = &mut moon.metadata.authors;
+            // normalize
+            let vec: &mut Vec<String> = match authors {
+                moon::Authors::Authors(ref mut vec) => vec,
+                moon::Authors::Author(_) => {
+                    let mut new_authors = moon::Authors::Authors(vec![]);
+                    // ah, the ol' authorship switcharoo
+                    let moon::Authors::Author(a) = std::mem::replace(authors, moon::Authors::Authors(vec![])) else { unreachable!() };
+                    let moon::Authors::Authors(ref mut vec) = authors else { unreachable!() };
+                    vec.push(a);
+                    vec
+                }
+            };
+            vec.extend(self.add_author);
+            drop(vec);
+        }
+    }
+}
+
+/// Top-level parsing node
+#[derive(Clone, Debug, Parser)]
+pub enum Action {
+    #[cfg_attr(feature = "unpack", doc = "Upload an avatar or compiled moon to the Figura backend.")]
+    #[cfg_attr(not(feature = "unpack"), doc = "Upload an avatar directory to the Figura backend.")]
     Push {
+        /// Path to the avatar to pack and upload.
         #[arg(required = true)]
         avatar: Option<PathBuf>,
+        /// Treat the avatar path as a moon instead of packing it.
+        #[cfg(feature = "unpack")]
         #[arg(short, long)]
         moon: bool,
+        #[command(flatten)]
+        #[allow(missing_docs)]
+        modify: MoonModifications,
     },
-    #[command(about = "Downloads an avatar from the cloud by UUID or player name.")]
+    /// Download an avatar from the cloud by UUID or player name.
+    #[cfg(feature = "pull")]
     Pull {
-        #[arg()]
-        target: String,
+        /// String or UUID (or avatar ID with -A) to download.
+        #[arg(required = true)]
+        target: Option<String>,
+        /// Treat the target as an avatar ID instead.
+        #[arg(short = 'A', long, conflicts_with = "target")]
+        avatar_id: Option<String>,
+        #[cfg_attr(not(feature = "unpack"), doc = "Path to write the avatar data file to.")]
+        #[cfg_attr(feature = "unpack", doc = "Path to write the avatar data file (or extracted contents with --unpack) to.")]
         #[arg(short, long)]
         out: Option<PathBuf>,
+        /// Automatically determine the out path for CEM based on an entity ID.
         #[arg(short = 'C', long, conflicts_with = "out")]
         cem: Option<String>,
+        /// Path to the root directory of the resource pack when using --cem.
         #[arg(short = 'r', long, requires = "cem")]
         pack_root: Option<PathBuf>,
+        /// Extract the downloaded avatar's contents immediately.
         #[cfg(feature = "unpack")]
         #[arg(short, long, conflicts_with = "cem")]
         unpack: bool,
+        #[command(flatten)]
+        #[allow(missing_docs)]
+        modify: MoonModifications,
     },
-    #[command(about = "Prints information about an avatar file.")]
+    /// Print information about an avatar file.
     Show {
+        /// Path to the avatar file to show.
         #[arg()]
         file: PathBuf,
+        /// Print the internal representation of the avatar file.
         #[arg(short, long)]
         parse: bool,
+        /// Show more information, such as filenames.
         #[arg(short, long, conflicts_with = "parse")]
         verbose: bool,
+        /// Output script content after each script.
+        #[arg(short, long, requires = "verbose")]
+        sources: bool,
+        #[command(flatten)]
+        #[allow(missing_docs)]
+        modify: MoonModifications,
     },
-    #[command(about = "Creates an avatar file from a directory.")]
+    /// Create an avatar file from a directory.
     Pack {
-        #[arg()]
+        /// Path to avatar data to pack. Defaults to current directory.
+        #[arg(default_value = ".")]
         dir: PathBuf,
-        #[arg()]
+        /// Where to write the resulting avatar data. Defaults to avatar.nbt.
+        #[arg(default_value = "avatar.nbt")]
         out: PathBuf,
+        #[command(flatten)]
+        #[allow(missing_docs)]
+        modify: MoonModifications,
     },
     #[cfg(feature = "unpack")]
-    #[command(about = "Unpacks the contents of an avatar file.")]
+    /// Unpack the contents of an avatar file.
     Unpack {
+        /// Path to the avatar data to unpack.
         #[arg()]
         file: PathBuf,
+        /// Where to unpack the data to. Defaults to current directory, which may be explosive!
         #[arg(short, long, default_value = ".")]
         out: PathBuf,
+        #[command(flatten)]
+        #[allow(missing_docs)]
+        modify: MoonModifications,
     },
-    #[command(about = "Rewrites, recompresses, and optionally modifies an avatar file.")]
+    /// Rewrite, recompress, and optionally modify an avatar file.
     Repack {
+        /// File to read avatar data from.
         #[arg()]
         file: PathBuf,
+        /// Output path for avatar data. Overwrites the input file by default.
         #[arg(short, long)]
         out: Option<PathBuf>,
+        /// Set the compression level to the given value or maximum.
         #[arg(short = 'z', long)]
         compress: Option<Option<u32>>,
+        /// Do not compress the avatar data.
         #[arg(short = 'l', long, conflicts_with = "compress")]
         no_compress: bool,
-        #[arg(short = 'w', long, conflicts_with = "if_smaller")]
+        /// Only [over]write the avatar data if it was made smaller.
+        #[arg(short = 'w', long)]
         if_smaller: bool,
-        #[arg(short = 'p', long, conflicts_with = "if_smaller")]
-        add_author: Vec<String>,
-        #[arg(short = 'i', long, conflicts_with = "if_smaller")]
-        add_script: Vec<String>,
-        #[arg(short = 'k', long, conflicts_with = "if_smaller")]
-        add_texture: Vec<String>,
-        #[arg(short = 'e', long, alias = "edit", conflicts_with = "if_smaller")]
-        edit_script: Vec<String>,
-        #[arg(short = 'r', long, conflicts_with = "if_smaller")]
-        remove_script: Vec<String>,
-        #[arg(short = 's', long, conflicts_with = "if_smaller")]
-        remove_texture: Vec<String>,
+        #[command(flatten)]
+        #[allow(missing_docs)]
+        modify: MoonModifications,
     },
     #[cfg(feature = "backend")]
-    #[command(about = "Runs a Figura-compatible backend.")]
+    /// Run a Figura-compatible backend.
     Backend {
     },
+    /// 🦭
     #[command(hide = true, group = ArgGroup::new("image").multiple(false))]
+    #[allow(missing_docs)]
     Fok {
         #[arg(short, long, group = "image")]
         stock: bool,
@@ -118,10 +204,24 @@ fn get_moon(path: &Path) -> io::Result<Moon> {
 
 fn main() -> io::Result<()> {
     match Action::parse() {
-        Action::Push { .. } => todo!(),
-        Action::Pull { .. } => todo!(),
-        Action::Show { file, verbose, parse } => {
-            let (moon, tag_name) = get_moon_with_name(&file)?;
+        a@Action::Push { .. } => {
+            #[cfg(not(feature = "unpack"))]
+            let Action::Push { avatar, modify } = a else { unreachable!(); };
+            #[cfg(feature = "unpack")]
+            let Action::Push { avatar, modify, moon } = a else { unreachable!(); };
+            todo!()
+        }
+        #[cfg(feature = "pull")]
+        a@Action::Pull { .. } => {
+            #[cfg(not(feature = "unpack"))]
+            let Action::Pull { target, avatar_id, out, cem, pack_root, modify } = a else { unreachable!(); };
+            #[cfg(feature = "unpack")]
+            let Action::Pull { target, avatar_id, out, cem, pack_root, modify, unpack } = a else { unreachable!(); };
+            todo!()
+        }
+        Action::Show { file, verbose, parse, sources, modify } => {
+            let (mut moon, tag_name) = get_moon_with_name(&file)?;
+            modify.apply(&mut moon);
             if parse {
                 println!("{moon:?}");
             } else {
@@ -130,15 +230,17 @@ fn main() -> io::Result<()> {
                     let mut desc: &str = (&*moon.metadata.description).into();
                     if !verbose {
                         if let Some(size) = desc.find('\n') {
+                            desc = &desc[0..size];
                             // Safety:
                             // * Decreasing the length of a string is safe
                             // * `str::find` always returns a value less than length
+                            // * `str::find` is codepoint-aligned, hopefully
                             // Rationale: Avoids an allocation
-                            unsafe {
-                                let ptr2: &mut (*const (), usize) = std::mem::transmute(&mut desc);
-                                debug_assert!(size <= ptr2.1);
-                                ptr2.1 = size;
-                            }
+                            // unsafe {
+                            //     let ptr2: &mut (*const (), usize) = std::mem::transmute(&mut desc);
+                            //     debug_assert!(size <= ptr2.1);
+                            //     ptr2.1 = size;
+                            // }
                         }
                     }
                 }
@@ -162,6 +264,9 @@ fn main() -> io::Result<()> {
                         for (name, data) in moon.scripts {
                             let data = Array::into_inner(data);
                             println!("• \x1b[1m{name}\x1b[21;22;24m {}b", data.len());
+                            if sources {
+                                println!("{}", String::from_utf8_lossy(&data));
+                            }
                         }
                     } else {
                         println!("• \x1b[1m{} script{}", moon.scripts.len(), if moon.scripts.len() == 1 { "" } else { "s" });
@@ -171,15 +276,17 @@ fn main() -> io::Result<()> {
         }
         Action::Pack { .. } => todo!(),
         #[cfg(feature = "unpack")]
-        Action::Unpack { file, out } => {
-            let Moon { textures: moon::Textures { src, .. }, scripts, animations, models, metadata, resources } = get_moon(&file)?;
+        Action::Unpack { file, out, modify } => {
+            let mut moon = get_moon(&file)?;
+            modify.apply(&mut moon);
+            let Moon { textures: moon::Textures { src, .. }, scripts, animations, models, metadata, resources } = moon;
             let mut files = HashMap::<PathBuf, &[u8]>::new();
             for (path, data) in &src {
-                let mut path = out.join(Path::new(&(path.to_owned() + ".png")));
+                let mut path = out.join(Path::new(&(path.replace('.', "/") + ".png")));
                 files.insert(path, &data.as_ref());
             }
             for (path, data) in &scripts {
-                let mut path = out.join(Path::new(&(path.to_owned() + ".lua")));
+                let mut path = out.join(Path::new(&(path.replace('.', "/") + ".lua")));
                 files.insert(path, &data.as_ref());
             }
             if models.chld.len() > 0 {
@@ -216,40 +323,12 @@ fn main() -> io::Result<()> {
             eprintln!("wrote {written} files");
             std::process::exit(fails.0.into())
         }
-        Action::Repack { file, out, add_author, compress, no_compress, if_smaller, add_script, add_texture, edit_script, remove_script, remove_texture } => {
+        Action::Repack { file, out, compress, no_compress, if_smaller, modify } => {
             let (mut moon, name) = get_moon_with_name(&file)?;
-            if add_author.len() > 0 {
-                let authors: &mut moon::Authors = &mut moon.metadata.authors;
-                // normalize
-                let vec: &mut Vec<String> = match authors {
-                    moon::Authors::Authors(ref mut vec) => vec,
-                    moon::Authors::Author(_) => {
-                        let mut new_authors = moon::Authors::Authors(vec![]);
-                        // ah, the ol' authorship switcharoo
-                        let moon::Authors::Author(a) = std::mem::replace(authors, moon::Authors::Authors(vec![])) else { unreachable!() };
-                        let moon::Authors::Authors(ref mut vec) = authors else { unreachable!() };
-                        vec.push(a);
-                        vec
-                    }
-                };
-                vec.extend(add_author);
-                drop(vec);
+            if (modify != MoonModifications::default() && if_smaller) {
+                panic!("cannot use modification flags with -w")
             }
-            if add_script.len() > 0 {
-                todo!("--add-script");
-            }
-            if add_texture.len() > 0 {
-                todo!("--add-texture");
-            }
-            if edit_script.len() > 0 {
-                todo!("--edit-script");
-            }
-            if remove_script.len() > 0 {
-                todo!("--remove-script");
-            }
-            if remove_texture.len() > 0 {
-                todo!("--remove-texture");
-            }
+            modify.apply(&mut moon);
             use quartz_nbt::serde as qs;
             use flate2::Compression;
             let compression = if no_compress {
