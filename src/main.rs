@@ -1,5 +1,6 @@
 #![allow(warnings)]
 #![deny(missing_docs)]
+#![feature(never_type)]
 
 //! Various CLI utilities for Figura.
 
@@ -7,6 +8,7 @@ mod bbmodel;
 mod moon;
 
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::fs::{File, create_dir_all, canonicalize, read_to_string, write};
 use std::io::{self, stdout, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
@@ -19,7 +21,56 @@ use moon::Moon;
 use quartz_nbt::{io::NbtIoError, serde::Array};
 use resolve_path::PathResolveExt as _;
 use serde::{Serialize, Deserialize};
+use thiserror::Error;
 use url::Url;
+
+#[derive(Debug, Error)]
+enum EqualParseError<K: Display, V: Display> {
+    #[error("string did not contain a '='")]
+    EqualSignRequired,
+    #[error("could not parse key: {0}")]
+    InvalidKey(K),
+    #[error("could not parse value: {0}")]
+    InvalidValue(V),
+}
+#[derive(Debug, Error)]
+enum OptEqualParseError<K: Display, V: Display> {
+    #[error("could not parse lone value: {0}")]
+    InvalidLoneValue(V),
+    #[error("could not parse key in pair: {0}")]
+    InvalidPairKey(K),
+    #[error("could not parse value in pair: {0}")]
+    InvalidPairValue(V),
+}
+fn equal<K: FromStr, V: FromStr>(pair: &str) -> Result<(K, V), EqualParseError<K::Err, V::Err>> where K::Err: Display, V::Err: Display {
+    if let Some(n) = pair.find('=') {
+        match pair[0..n].parse() {
+            Ok(k) => match pair[n+1..].parse() {
+                Ok(v) => Ok((k, v)),
+                Err(e) => Err(EqualParseError::InvalidValue(e)),
+            },
+            Err(e) => Err(EqualParseError::InvalidKey(e)),
+        }
+    } else {
+        Err(EqualParseError::EqualSignRequired)
+    }
+}
+fn opt_equal<K: FromStr, V: FromStr>(pair: &str) -> Result<(Option<K>, V), OptEqualParseError<K::Err, V::Err>> where K::Err: Display, V::Err: Display {
+    if let Some(n) = pair.find('=') {
+        match pair[0..n].parse() {
+            Ok(k) => match pair[n+1..].parse() {
+                Ok(v) => Ok((Some(k), v)),
+                Err(e) => Err(OptEqualParseError::InvalidPairValue(e)),
+            },
+            Err(e) => Err(OptEqualParseError::InvalidPairKey(e)),
+        }
+    } else {
+        match pair.parse() {
+            Ok(v) => Ok((None, v)),
+            Err(e) => Err(OptEqualParseError::InvalidLoneValue(e)),
+        }
+    }
+}
 
 /// Set of modifications to perform to avatar data.
 #[derive(Args, Clone, Debug, Default, PartialEq, Eq)]
@@ -29,11 +80,11 @@ pub struct MoonModifications {
     #[arg(short = 'p', long, value_name = "AUTHOR")]
     pub add_author: Vec<String>,
     /// Add or replace a script.
-    #[arg(short = 'i', long, value_name = "\x08[NAME=]<PATH>\x1b[C\x1b")]
-    pub add_script: Vec<String>,
+    #[arg(short = 'i', long, value_name = "\x08[NAME=]<PATH>\x1b[C\x1b", value_parser = opt_equal::<String, PathBuf>)]
+    pub add_script: Vec<(Option<String>, PathBuf)>,
     /// Add or replace a texture.
-    #[arg(short = 'k', long, value_name = "\x08[NAME=]<PATH>\x1b[C\x1b")]
-    pub add_texture: Vec<String>,
+    #[arg(short = 'k', long, value_name = "\x08[NAME=]<PATH>\x1b[C\x1b", value_parser = opt_equal::<String, PathBuf>)]
+    pub add_texture: Vec<(Option<String>, PathBuf)>,
     /// Interactively edit a script (leaving a copy in the current working directory).
     #[arg(short = 'e', long, alias = "edit", value_name = "NAME")]
     pub edit_script: Vec<String>,
