@@ -23,6 +23,7 @@ use url::Url;
 
 /// Set of modifications to perform to avatar data.
 #[derive(Args, Clone, Debug, Default, PartialEq, Eq)]
+#[command(next_help_heading = "Editing Options")]
 pub struct MoonModifications {
     /// Add an avatar author (authors cannot be removed for obvious reasons).
     #[arg(short = 'p', long, value_name = "AUTHOR")]
