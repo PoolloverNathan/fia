@@ -28,10 +28,10 @@ pub struct MoonModifications {
     #[arg(short = 'p', long, value_name = "AUTHOR")]
     pub add_author: Vec<String>,
     /// Add or replace a script.
-    #[arg(short = 'i', long, value_name = "\x08[NAME=]<PATH")]
+    #[arg(short = 'i', long, value_name = "\x08[NAME=]<PATH>\x1b[C\x1b")]
     pub add_script: Vec<String>,
     /// Add or replace a texture.
-    #[arg(short = 'k', long, value_name = "\x08[NAME=]<PATH")]
+    #[arg(short = 'k', long, value_name = "\x08[NAME=]<PATH>\x1b[C\x1b")]
     pub add_texture: Vec<String>,
     /// Interactively edit a script (leaving a copy in the current working directory).
     #[arg(short = 'e', long, alias = "edit", value_name = "NAME")]
