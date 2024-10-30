@@ -80,11 +80,11 @@ pub struct MoonModifications {
     #[arg(short = 'p', long, value_name = "AUTHOR")]
     pub add_author: Vec<String>,
     /// Add or replace a script.
-    #[arg(short = 'i', long, value_name = "\x08[NAME=]<PATH>\x1b[C\x1b", value_parser = opt_equal::<String, PathBuf>)]
-    pub add_script: Vec<(Option<String>, PathBuf)>,
+    #[arg(short = 'i', long, value_name = "\x08[NAME=]<PATH>\x1b[C\x1b", value_parser = equal::<String, PathBuf>)]
+    pub add_script: Vec<(String, PathBuf)>,
     /// Add or replace a texture.
-    #[arg(short = 'k', long, value_name = "\x08[NAME=]<PATH>\x1b[C\x1b", value_parser = opt_equal::<String, PathBuf>)]
-    pub add_texture: Vec<(Option<String>, PathBuf)>,
+    #[arg(short = 'k', long, value_name = "\x08[NAME=]<PATH>\x1b[C\x1b", value_parser = equal::<String, PathBuf>)]
+    pub add_texture: Vec<(String, PathBuf)>,
     /// Interactively edit a script (leaving a copy in the current working directory).
     #[arg(short = 'e', long, alias = "edit", value_name = "NAME")]
     pub edit_script: Vec<String>,
@@ -97,8 +97,9 @@ pub struct MoonModifications {
 }
 
 impl MoonModifications {
-    fn apply(self, moon: &mut Moon) {
-        if self.add_author.len() > 0 {
+    fn apply(self, moon: &mut Moon) -> io::Result<()> {
+        let Self { add_author, add_script, add_texture, edit_script, remove_script, remove_texture } = self;
+        if add_author.len() > 0 {
             let authors: &mut moon::Authors = &mut moon.metadata.authors;
             // normalize
             let vec: &mut Vec<String> = match authors {
@@ -112,9 +113,30 @@ impl MoonModifications {
                     vec
                 }
             };
-            vec.extend(self.add_author);
+            vec.extend(add_author);
             drop(vec);
         }
+        for name in remove_script {
+            if let None = moon.scripts.remove(&name) {
+                eprintln!("warning: removing nonexistent script {name}");
+            }
+        }
+        for name in remove_texture {
+            if let None = moon.textures.src.remove(&name) {
+                eprintln!("warning: removing nonexistent texture {name}");
+            }
+        }
+        for (name, path) in add_script {
+            let mut buf = vec![];
+            File::open(path)?.read_to_end(&mut buf);
+            moon.scripts.insert(name, buf.into());
+        }
+        for (name, path) in add_texture {
+            let mut buf = vec![];
+            File::open(path)?.read_to_end(&mut buf);
+            moon.textures.src.insert(name, buf.into());
+        }
+        Ok(())
     }
 }
 
@@ -373,9 +395,6 @@ fn main() -> io::Result<()> {
             let mut moon = File::open(&file)?;
             // FIXME: don't panic
             let (mut moon, name) = get_moon_with_name(moon).expect("couldn't load moon");
-            if (modify != MoonModifications::default() && if_smaller) {
-                panic!("cannot use modification flags with -w")
-            }
             modify.apply(&mut moon);
             use quartz_nbt::serde as qs;
             use flate2::Compression;
