@@ -226,6 +226,9 @@ pub enum Action {
         #[command(flatten)]
         #[allow(missing_docs)]
         modify: MoonModifications,
+        /// Which files to unpack, if not all.
+        #[arg()]
+        paths: Option<Vec<String>>,
     },
     /// Rewrite, recompress, and optionally modify an avatar file.
     Repack {
@@ -342,25 +345,48 @@ fn main() -> io::Result<()> {
         }
         Action::Pack { .. } => todo!(),
         #[cfg(feature = "unpack")]
-        Action::Unpack { file, out, modify } => {
+        Action::Unpack { file, out, modify, paths } => {
             let file = File::open(file)?;
             // FIXME: don't panic
             let mut moon = get_moon(file).expect("no opening moon");
             modify.apply(&mut moon);
             let Moon { textures: moon::Textures { src, .. }, scripts, animations, models, metadata, resources } = moon;
-            let mut files = HashMap::<PathBuf, &[u8]>::new();
+            let mut contents = HashMap::<PathBuf, &[u8]>::new();
+            let mut omitted = 0;
+            macro_rules! add_if_whitelisted {
+                ($name:expr => $data:expr) => {
+                    let name: &str = $name;
+                    let data: &[u8] = $data;
+                    'a: {
+                        if let Some(paths) = &paths {
+                            let mut whitelisted = false;
+                            for prefix in paths {
+                                if if prefix.ends_with("/") {
+                                    name.starts_with(prefix)
+                                } else {
+                                    name == *prefix
+                                } {
+                                    contents.insert(out.join(Path::new(&name)), data);
+                                    break 'a
+                                }
+                            }
+                            omitted += 1;
+                        } else {
+                            contents.insert(out.join(Path::new(&name)), data);
+                        }
+                    }
+                }
+            };
             for (path, data) in &src {
-                let mut path = out.join(Path::new(&(path.replace('.', "/") + ".png")));
-                files.insert(path, &data.as_ref());
+                add_if_whitelisted!(&(path.replace('.', "/") + ".png") => &data.as_ref());
             }
             for (path, data) in &scripts {
-                let mut path = out.join(Path::new(&(path.replace('.', "/") + ".lua")));
-                files.insert(path, &data.as_ref());
+                add_if_whitelisted!(&(path.replace('.', "/") + ".lua") => &data.as_ref());
             }
             if models.chld.len() > 0 {
                 eprintln!("warning: extracting models not supported yet")
             }
-            let mut dirs: Vec<_> = files.keys().filter_map(|p| p.parent().map(PathBuf::from)).collect();
+            let mut dirs: Vec<_> = contents.keys().filter_map(|p| p.parent().map(PathBuf::from)).collect();
             dirs.sort();
             dirs.dedup();
             let mut written = 0;
@@ -369,7 +395,7 @@ fn main() -> io::Result<()> {
                 if let Err(e) = create_dir_all(&dir) {
                     fails += 1;
                     eprintln!("failed to mkdir {}: {e}", dir.display());
-                    files.retain(|lost, _| {
+                    contents.retain(|lost, _| {
                         if lost.starts_with(&dir) {
                             eprintln!("├╴lost file: {}", lost.display());
                             false
@@ -380,7 +406,7 @@ fn main() -> io::Result<()> {
                     eprintln!("\x1b[A└"); // no need to check, as we can't create empty directories
                 }
             }
-            for (file, data) in files {
+            for (file, data) in contents {
                 if let Err(e) = write(&file, data) {
                     fails += 1;
                     eprintln!("failed to write {}: {e}", file.display());
@@ -388,7 +414,7 @@ fn main() -> io::Result<()> {
                     written += 1;
                 }
             }
-            eprintln!("wrote {written} files");
+            eprintln!("wrote {written} files{}", if omitted > 0 { format!(" ({omitted} omitted)") } else { "".into() });
             std::process::exit(fails.0.into())
         }
         Action::Repack { file, out, compress, no_compress, if_smaller, modify } => {
