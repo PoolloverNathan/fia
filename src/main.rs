@@ -8,7 +8,7 @@ mod moon;
 
 use std::collections::HashMap;
 use std::fs::{File, create_dir_all, canonicalize, read_to_string, write};
-use std::io::{self, stdout, IsTerminal};
+use std::io::{self, stdout, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::str::FromStr;
@@ -16,7 +16,7 @@ use base64::{Engine as _, prelude::BASE64_STANDARD};
 use bbmodel::BBModel;
 use clap::{Args, ArgGroup, Parser, Subcommand};
 use moon::Moon;
-use quartz_nbt::serde::Array;
+use quartz_nbt::{io::NbtIoError, serde::Array};
 use resolve_path::PathResolveExt as _;
 use serde::{Serialize, Deserialize};
 use url::Url;
@@ -194,13 +194,11 @@ pub enum Action {
     },
 }
 
-fn get_moon_with_name(path: &Path) -> io::Result<(Moon, String)> {
-    let mut file = File::open(path)?;
-    let data: (Moon, _) = quartz_nbt::serde::deserialize_from(&mut file, quartz_nbt::io::Flavor::GzCompressed).unwrap_or_else(|m| panic!("moon data corrputed due to {m:?}"));
-    Ok(data)
+fn get_moon_with_name(mut file: impl Read) -> Result<(Moon, String), NbtIoError> {
+    quartz_nbt::serde::deserialize_from(&mut file, quartz_nbt::io::Flavor::GzCompressed)
 }
-fn get_moon(path: &Path) -> io::Result<Moon> {
-    get_moon_with_name(path).map(|d| d.0)
+fn get_moon(mut file: impl Read) -> Result<Moon, NbtIoError> {
+    get_moon_with_name(file).map(|d| d.0)
 }
 
 fn main() -> io::Result<()> {
@@ -213,7 +211,9 @@ fn main() -> io::Result<()> {
             todo!()
         }
         Action::Show { file, verbose, parse, sources, modify } => {
-            let (mut moon, tag_name) = get_moon_with_name(&file)?;
+            let file = File::open(file)?;
+            // FIXME: don't panic
+            let (mut moon, tag_name) = get_moon_with_name(file).expect("loading moon failed");
             modify.apply(&mut moon);
             if parse {
                 println!("{moon:?}");
@@ -270,7 +270,9 @@ fn main() -> io::Result<()> {
         Action::Pack { .. } => todo!(),
         #[cfg(feature = "unpack")]
         Action::Unpack { file, out, modify } => {
-            let mut moon = get_moon(&file)?;
+            let file = File::open(file)?;
+            // FIXME: don't panic
+            let mut moon = get_moon(file).expect("no opening moon");
             modify.apply(&mut moon);
             let Moon { textures: moon::Textures { src, .. }, scripts, animations, models, metadata, resources } = moon;
             let mut files = HashMap::<PathBuf, &[u8]>::new();
@@ -317,7 +319,9 @@ fn main() -> io::Result<()> {
             std::process::exit(fails.0.into())
         }
         Action::Repack { file, out, compress, no_compress, if_smaller, modify } => {
-            let (mut moon, name) = get_moon_with_name(&file)?;
+            let mut moon = File::open(&file)?;
+            // FIXME: don't panic
+            let (mut moon, name) = get_moon_with_name(moon).expect("couldn't load moon");
             if (modify != MoonModifications::default() && if_smaller) {
                 panic!("cannot use modification flags with -w")
             }
