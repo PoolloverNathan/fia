@@ -205,19 +205,11 @@ fn get_moon(path: &Path) -> io::Result<Moon> {
 
 fn main() -> io::Result<()> {
     match Action::parse() {
-        a@Action::Push { .. } => {
-            #[cfg(not(feature = "unpack"))]
-            let Action::Push { avatar, modify } = a else { unreachable!(); };
-            #[cfg(feature = "unpack")]
-            let Action::Push { avatar, modify, moon } = a else { unreachable!(); };
+        Action::Push { avatar, modify, #[cfg(feature = "unpack")] moon } => {
             todo!()
         }
         #[cfg(feature = "pull")]
-        a@Action::Pull { .. } => {
-            #[cfg(not(feature = "unpack"))]
-            let Action::Pull { target, avatar_id, out, cem, pack_root, modify } = a else { unreachable!(); };
-            #[cfg(feature = "unpack")]
-            let Action::Pull { target, avatar_id, out, cem, pack_root, modify, unpack } = a else { unreachable!(); };
+        Action::Pull { target, avatar_id, out, cem, pack_root, modify, #[cfg(feature = "unpack")] unpack } => {
             todo!()
         }
         Action::Show { file, verbose, parse, sources, modify } => {
