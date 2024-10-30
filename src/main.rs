@@ -190,13 +190,13 @@ pub enum Action {
         #[arg()]
         file: PathBuf,
         /// Print the internal representation of the avatar file.
-        #[arg(short, long)]
+        #[arg(short = 'd', long)]
         parse: bool,
         /// Show more information, such as filenames.
         #[arg(short, long, conflicts_with = "parse")]
         verbose: bool,
         /// Output script content after each script.
-        #[arg(short, long, requires = "verbose")]
+        #[arg(short = 'w', long, requires = "verbose")]
         sources: bool,
         #[command(flatten)]
         #[allow(missing_docs)]
