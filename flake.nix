@@ -47,6 +47,7 @@
             };
           };
         };
+
         #{{{2 perSystem
         perSystem = f: nixpkgs.lib.mapAttrs (system: f) nixpkgs.legacyPackages;
         #{{{2 toolchainFor
@@ -111,14 +112,14 @@
                 OPENSSL_INCLUDE_DIR = tagTrace "OPENSSL_INCLUDE_DIR" (openssl.dev + /include);
                 TARGET_CC = tagTrace "TARGET_CC" targetCC; # ring requires special treatment
                 CARGO_BUILD_TARGET = tagTrace "CARGO_BUILD_TARGET" rustTarget;
-                CARGO_BUILD_RUSTFLAGS = tagTrace "CARGO_BUILD_RUSTFLAGS" [
+                CARGO_BUILD_RUSTFLAGS = tagTrace "CARGO_BUILD_RUSTFLAGS" (buildPackageAttrs.CARGO_BUILD_RUSTFLAGS or [] ++ [
                   "-C"
                   "target-feature=+crt-static"
                   "-C"
                   "link-args=-static${if atomic then " -latomic" else ""}"
                   "-C"
                   "linker=${targetCC}" # https://github.com/rust-lang/cargo/issues/4133
-                ];
+                ]);
               }
             )
           );
