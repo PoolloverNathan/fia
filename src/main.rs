@@ -229,6 +229,9 @@ pub enum Action {
         /// Which files to unpack, if not all.
         #[arg()]
         paths: Option<Vec<String>>,
+        /// Writes the raw model blob to a file.
+        #[arg(short = 'm', long)]
+        dump_models: Option<Option<String>>,
     },
     /// Rewrite, recompress, and optionally modify an avatar file.
     Repack {
@@ -345,7 +348,7 @@ fn main() -> io::Result<()> {
         }
         Action::Pack { .. } => todo!(),
         #[cfg(feature = "unpack")]
-        Action::Unpack { file, out, modify, paths } => {
+        Action::Unpack { file, out, modify, paths, mut dump_models } => {
             let file = File::open(file)?;
             // FIXME: don't panic
             let mut moon = get_moon(file).expect("no opening moon");
@@ -382,6 +385,21 @@ fn main() -> io::Result<()> {
             }
             for (path, data) in &scripts {
                 add_if_whitelisted!(&(path.replace('.', "/") + ".lua") => &data.as_ref());
+            }
+            let mut dump_model_guard: Option<(String, Vec<u8>)> = None;
+            if let Some(path) = dump_models.take() {
+                let path = path.unwrap_or_else(|| String::from("models.nbt"));
+                if let Some(models) = &models {
+                    use quartz_nbt::serde as qs;
+                    use flate2::Compression;
+                    use quartz_nbt::io::Flavor;
+                    let mut data = vec![];
+                    qs::serialize_into(&mut data, &models, Some("models"), Flavor::GzCompressedWith(Compression::default()));
+                    dump_model_guard = Some((path, data));
+                }
+            }
+            if let Some((path, data)) = &dump_model_guard {
+                add_if_whitelisted!(&path => &data);
             }
             // if models.chld.len() > 0 {
                 // eprintln!("warning: extracting models not supported yet")
