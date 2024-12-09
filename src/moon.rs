@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use serde::{Serialize, Deserialize};
-use quartz_nbt::serde::Array;
+use quartz_nbt::{NbtTag, serde::Array};
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Moon {
@@ -10,9 +10,9 @@ pub struct Moon {
     #[serde(default)]
     pub scripts: HashMap<String, Array<Vec<u8>>>,
     #[serde(default)]
-    pub animations: Vec<Animation>,
+    pub animations: Vec<NbtTag>,
     #[serde(default)]
-    pub models: ModelPart,
+    pub models: Option<NbtTag>,
     #[serde(default)]
     pub resources: HashMap<String, Array<Vec<u8>>>,
     #[serde(default)]
@@ -79,6 +79,7 @@ impl Default for Authors {
     }
 }
 
+/*
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct ModelPart {
     pub name: String,
@@ -91,7 +92,10 @@ pub struct ModelPart {
     pub piv: Option<[f64; 3]>,
     #[serde(default)]
     pub pt: Option<ParentType>,
+    #[serde(flatten)]
+    data: serde_json::RawValue,
 }
+*/
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ParentType {

@@ -73,7 +73,7 @@ fn opt_equal<K: FromStr, V: FromStr>(pair: &str) -> Result<(Option<K>, V), OptEq
 }
 
 /// Set of modifications to perform to avatar data.
-#[derive(Args, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Args, Clone, Debug, PartialEq, Eq)]
 #[command(next_help_heading = "Editing Options")]
 pub struct MoonModifications {
     /// Add an avatar author (authors cannot be removed for obvious reasons).
@@ -383,9 +383,9 @@ fn main() -> io::Result<()> {
             for (path, data) in &scripts {
                 add_if_whitelisted!(&(path.replace('.', "/") + ".lua") => &data.as_ref());
             }
-            if models.chld.len() > 0 {
-                eprintln!("warning: extracting models not supported yet")
-            }
+            // if models.chld.len() > 0 {
+                // eprintln!("warning: extracting models not supported yet")
+            // }
             let mut dirs: Vec<_> = contents.keys().filter_map(|p| p.parent().map(PathBuf::from)).collect();
             dirs.sort();
             dirs.dedup();
