@@ -295,7 +295,7 @@ fn main() -> io::Result<()> {
             let (mut moon, tag_name) = get_moon_with_name(file).expect("loading moon failed");
             modify.apply(&mut moon);
             if parse {
-                println!("{moon:?}");
+                println!("{moon:#?}");
             } else {
                 println!("\x1b[1;4m{}\x1b[21;22;24m", moon.metadata.name);
                 if moon.metadata.description != "" {
