@@ -17,6 +17,7 @@ use quartz_nbt::{NbtTag, serde::Array};
 /// The top-level of a Figura avatar. This structure contains maps for avatar information, but
 /// since Figura may add more keys at any time, this cannot be exhaustive.
 #[non_exhaustive]
+#[serde(deny_unknown_fields)]
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Moon {
     /// Textures associated with this avatar, found in a bbmodel.
@@ -46,6 +47,7 @@ pub struct Moon {
 
 /// Stores the mapping of texture data sources and the list of textures available to modelparts.
 #[derive(Default, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Textures {
     /// Raw texture data. The values of this map are PNG-encoded images, but I'm not masochistic
     /// enough to include PNG deserialization in a Figura avatar parser module.
@@ -59,6 +61,7 @@ pub struct Textures {
 
 /// A set of textures used by modelparts.
 #[derive(Default, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct TextureData {
     /// The primary texture, which is not given a name suffix.
@@ -67,6 +70,7 @@ pub struct TextureData {
 
 /// Unused. I don't remember writing this struct.
 #[derive(Default, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 #[allow(missing_docs)]
 pub struct Animation {
     #[serde(default)]
@@ -97,6 +101,7 @@ pub enum Loop {
 /// Extra avatar data found almost-exactly in `avatar.json`. This is usually safe to dump to JSON
 /// directly (via e.g. [serde_json]).
 #[derive(Default, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Metadata {
     /// Author(s) of the model. If unspecified, is the single author `"?"`.
     #[serde(default)]
@@ -210,6 +215,7 @@ pub enum ModelData {
 
 /// Maps each side of something (such as a cube) to an object.
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Sided<S> {
     /// The north face.
     pub n: Option<S>,
@@ -226,17 +232,22 @@ pub struct Sided<S> {
 }
 
 /// Texture and UV information for each face of a cube.
+#[serde(deny_unknown_fields)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Face {
     /// The texture ID in [Textures::data].
     pub tex: usize,
     /// The UV information (presumably `[x0, y0, x1, y1]`, but I haven't confirmed this).
     pub uv: [f64; 4],
+    /// How the face is rotated.
+    #[serde(default)]
+    pub rot: f64,
 }
 
 /// Texture and vertex information for meshes. I'm not even going to try documenting this right
 /// now; ping me in a few hours maybe?
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MeshData {
     /// Vertices.
     pub vtx: NbtTag,
@@ -246,6 +257,9 @@ pub struct MeshData {
     pub fac: NbtTag,
     /// UVs, aka hell.
     pub uvs: NbtTag,
+    /// Extraneous keys not matched.
+    #[serde(flatten)]
+    excess: NbtTag,
 }
 
 impl Default for ModelData {
