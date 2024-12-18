@@ -107,6 +107,7 @@
               // tagTrace "moreBuildPackageAttrs" {
                 src = tagTrace "src" src;
                 strictDeps = true;
+                doDoc = true;
                 OPENSSL_STATIC = true;
                 OPENSSL_LIB_DIR = tagTrace "OPENSSL_LIB_DIR" (openssl.out + /lib);
                 OPENSSL_INCLUDE_DIR = tagTrace "OPENSSL_INCLUDE_DIR" (openssl.dev + /include);

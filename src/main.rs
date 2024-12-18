@@ -5,7 +5,7 @@
 //! Various CLI utilities for Figura.
 
 mod bbmodel;
-mod moon;
+pub mod moon;
 
 use std::collections::HashMap;
 use std::fmt::Display;
