@@ -202,6 +202,13 @@ pub enum Action {
         #[allow(missing_docs)]
         modify: MoonModifications,
     },
+    /// Parses a .bbmodel file. Mainly useful for internal testing.
+    #[command(hide = true)]
+    ParseBbmodel {
+        /// Path to the Blockbench model to show.
+        #[arg()]
+        file: PathBuf,
+    },
     /// Create an avatar file from a directory.
     Pack {
         /// Path to avatar data to pack. Defaults to current directory.
@@ -346,6 +353,11 @@ fn main() -> io::Result<()> {
                 }
             }
         }
+        Action::ParseBbmodel { file } => {
+            let file = File::open(file)?;
+            let data: Result<BBModel, _> = serde_json::from_reader(file);
+            println!("{data:#?}");
+        },
         Action::Pack { .. } => todo!(),
         #[cfg(feature = "unpack")]
         Action::Unpack { file, out, modify, paths, mut dump_models } => {
