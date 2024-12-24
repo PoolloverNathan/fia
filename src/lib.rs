@@ -10,6 +10,8 @@
 #![deny(missing_docs)]
 #![feature(never_type)]
 
+pub extern crate std;
+
 pub mod moon;
 pub use moon::Moon;
 

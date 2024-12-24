@@ -242,7 +242,7 @@ fn return_true() -> bool { true }
 pub struct Element {
     /// The pivot point of this cube.
     #[serde(default)]
-    origin: [f64; 3],
+    pub origin: [f64; 3],
     /// The cube's name.
     pub name: String,
     pub uuid: String, // good enough
@@ -308,20 +308,20 @@ pub struct MeshFace {
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Faces {
-    north: Option<Face>,
-    east:  Option<Face>,
-    south: Option<Face>,
-    west:  Option<Face>,
-    up:    Option<Face>,
-    down:  Option<Face>,
+    pub north: Option<Face>,
+    pub east:  Option<Face>,
+    pub south: Option<Face>,
+    pub west:  Option<Face>,
+    pub up:    Option<Face>,
+    pub down:  Option<Face>,
 }
 
 /// The texture and UV position of a face.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Face {
-    uv: [f64; 4],
-    texture: Option<usize>,
+    pub uv: [f64; 4],
+    pub texture: Option<usize>,
     #[serde(default)]
-    rotation: u16,
+    pub rotation: f64,
 }

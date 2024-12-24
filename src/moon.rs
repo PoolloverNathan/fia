@@ -103,6 +103,9 @@ pub enum Loop {
 #[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Metadata {
+    /// The avatar's UUID, for some reasom?
+    #[serde(default)]
+    pub uuid: String,
     /// Author(s) of the model. If unspecified, is the single author `"?"`.
     #[serde(default)]
     pub authors: Authors,
@@ -244,22 +247,31 @@ pub struct Face {
     pub rot: f64,
 }
 
-/// Texture and vertex information for meshes. I'm not even going to try documenting this right
-/// now; ping me in a few hours maybe?
-#[derive(Debug, Serialize, Deserialize)]
+/// Texture and vertex information for meshes. Figura stores this in a horrifying way that makes it
+/// difficult to handle from structs. I doubt the comments in the source code are even correct —
+/// I'm too scared to go through this shit. May the odds be ever in your favor.
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct MeshData {
-    /// Vertices.
-    pub vtx: NbtTag,
-    /// Textures, see [Textures::data].
-    pub tex: NbtTag,
-    /// Faces.
-    pub fac: NbtTag,
+    /// The X, Y, and Z position of each vertex, consecutively.
+    pub vtx: Box<[f64]>,
+    /// The texture ID (see [Textures::data]) left-shifted 4, plus the number of vertices in the
+    /// face.
+    pub tex: Box<[u16]>,
+    /// The face list. The type of this field depends on the number of elements in
+    /// [`vtx`][Self::vtx], since the designers of this format hate people.
+    pub fac: Fac,
     /// UVs, aka hell.
-    pub uvs: NbtTag,
-    /// Extraneous keys not matched.
-    #[serde(flatten)]
-    excess: NbtTag,
+    pub uvs: Box<[f64]>,
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum Fac {
+    U8(Vec<i8>),
+    U16(Vec<i16>),
+    U32(Vec<i32>),
 }
 
 impl Default for ModelData {

@@ -209,6 +209,18 @@ pub enum Action {
         #[arg()]
         file: PathBuf,
     },
+    /// Generates element JSON for a model.
+    Element {
+        /// Path to the avatar file to show.
+        #[arg()]
+        path: PathBuf,
+        #[command(flatten)]
+        #[allow(missing_docs)]
+        modify: MoonModifications,
+        /// The slice indexes leading to the element to convert.
+        #[arg()]
+        index: Vec<usize>,
+    },
     /// Create an avatar file from a directory.
     Pack {
         /// Path to avatar data to pack. Defaults to current directory.
@@ -357,6 +369,66 @@ fn main() -> io::Result<()> {
             let file = File::open(file)?;
             let data: Result<BBModel, _> = serde_json::from_reader(file);
             println!("{data:#?}");
+        },
+        Action::Element { path, index, modify } => {
+            let file = File::open(path)?;
+            // FIXME: don't panic
+            let (mut moon, tag_name) = get_moon_with_name(file).expect("loading moon failed");
+            modify.apply(&mut moon);
+            let mut node = moon.models.unwrap();
+            for i in index {
+                node = node.chld.into_vec().swap_remove(i);
+            }
+            let moon::ModelPart { name, rot, piv, vsb, data, .. } = node;
+            use moon::{ModelData as M, MeshData, Sided, Face as MFace};
+            use bbmodel::{ElementType as E, Faces, Face};
+            fn convert_face(MFace { tex, uv, rot }: MFace) -> Face {
+                Face {
+                    rotation: rot,
+                    texture: tex.into(),
+                    uv,
+                }
+            }
+            let part = bbmodel::Element {
+                allow_mirror_modeling: true,
+                color: 0,
+                export: Some(true),
+                extra: match data {
+                    M::Group {} => unimplemented!("converting group to element"),
+                    M::Cube { cube_data: Sided { n, e, s, w, u, d }, f, t, inf } => E::Cube {
+                        from: f,
+                        to: t,
+                        uv_offset: None,
+                        faces: Faces {
+                            north: n.map(convert_face),
+                            east:  e.map(convert_face),
+                            south: s.map(convert_face),
+                            west:  w.map(convert_face),
+                            up:    u.map(convert_face),
+                            down:  d.map(convert_face),
+                        },
+                        autouv: 0,
+                        box_uv: None,
+                        inflate: Some(inf),
+                        light_emission: None,
+                        mirror_uv: false.into(),
+                        rescale: false,
+                        shade: None,
+                    },
+                    M::Mesh { mesh_data } => {
+                        todo!("mesh {mesh_data:#?}")
+                    },
+                },
+                locked: false,
+                name,
+                origin: piv,
+                render_order: None,
+                rotation: rot,
+                uuid: uuid::Uuid::new_v4().to_string(),
+                visibility: Some(vsb),
+            };
+            let value = serde_json::to_string(&part).unwrap();
+            println!("{value}");
         },
         Action::Pack { .. } => todo!(),
         #[cfg(feature = "unpack")]
