@@ -66,6 +66,9 @@ pub struct Textures {
 pub struct TextureData {
     /// The primary texture, which is not given a name suffix.
     pub d: String,
+    /// The secondary (emissive) texture, which usually has the same name as [`d`] but with an `_e`
+    /// suffixed.
+    pub e: Option<String>,
 }
 
 /// Unused. I don't remember writing this struct.
