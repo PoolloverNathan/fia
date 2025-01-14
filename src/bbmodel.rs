@@ -254,6 +254,35 @@ impl From<BBModel> for Hierarchy {
     }
 }
 
+impl Hierarchy {
+    pub fn textures(&self) -> std::collections::HashSet<usize> {
+        let mut set = Default::default();
+        if false {
+            return set
+        }
+        for element in &self.elements {
+            match element.extra {
+                ElementType::Cube { ref faces, .. } => {
+                    if let Some(Face { texture: Some(tex), .. }) = faces.north { set.insert(tex); }
+                    if let Some(Face { texture: Some(tex), .. }) = faces.east  { set.insert(tex); }
+                    if let Some(Face { texture: Some(tex), .. }) = faces.south { set.insert(tex); }
+                    if let Some(Face { texture: Some(tex), .. }) = faces.west  { set.insert(tex); }
+                    if let Some(Face { texture: Some(tex), .. }) = faces.up    { set.insert(tex); }
+                    if let Some(Face { texture: Some(tex), .. }) = faces.down  { set.insert(tex); }
+                },
+                ElementType::Mesh { ref faces, .. } => {
+                    for (_, face) in faces {
+                        if let Some(tex) = face.texture {
+                            set.insert(tex);
+                        }
+                    }
+                },
+            }
+        }
+        set
+    }
+}
+
 fn return_true() -> bool { true }
 
 /// Common information between all types of elements.
@@ -273,7 +302,7 @@ pub struct Element {
     #[serde(default = "return_true")]
     pub allow_mirror_modeling: bool,
     /// Whether the cube should be exported. If this is disabled, Figura completely ignores the
-    /// cube (not even adding it to the modelpart hiearchy).
+    /// cube (not even adding it to the modelpart hierarchy).
     pub export: Option<bool>,
     pub color: u8,
     #[serde(default)]

@@ -385,6 +385,7 @@ fn main() -> io::Result<()> {
             if hierarchy {
                 if let Ok(value) = node.hierarchy() {
                     println!("{}", serde_json::to_string(&value).unwrap());
+                    println!("Textures: {:?}", value.textures());
                 } else {
                     panic!("user error");
                 }
