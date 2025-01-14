@@ -10,6 +10,7 @@ type Object = Map<Value, Value>;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
+#[non_exhaustive]
 pub struct BBModel {
     pub activity_tracker: Any,
     #[serde(default)]
@@ -23,7 +24,7 @@ pub struct BBModel {
     pub meta: Meta,
     pub model_identifier: Option<String>,
     pub name: Option<String>,
-    pub outliner: Any,
+    pub outliner: Vec<OutlinerItem>,
     pub reference_images: Any,
     pub resolution: Resolution,
     pub textures: Vec<Texture>,
@@ -235,6 +236,24 @@ pub enum FormatVersion {
     V4_0,
 }
 
+/// An intermediate element and outliner tree.
+///
+/// This struct does not represent a Blockbench type. Instead, it represents a tree for elements
+/// and groups that is *part* of a model. It's always possible to extract the hierarchy from a
+/// model, but not the other way around.
+#[derive(Debug, Serialize, Deserialize, Default)]
+#[allow(missing_docs)]
+pub struct Hierarchy {
+    pub elements: Vec<Element>,
+    pub outliner: Vec<OutlinerItem>,
+}
+
+impl From<BBModel> for Hierarchy {
+    fn from(BBModel { elements, outliner, .. }: BBModel) -> Hierarchy {
+        Hierarchy { elements, outliner }
+    }
+}
+
 fn return_true() -> bool { true }
 
 /// Common information between all types of elements.
@@ -262,6 +281,67 @@ pub struct Element {
     /// Extension data for each type of modelpart.
     #[serde(flatten)]
     pub extra: ElementType,
+}
+
+/// Either a group in the outliner, or the UUID of a cube.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum OutlinerItem {
+    Group(Group),
+    Element(String),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(transparent)]
+struct BoxedUUID(String);
+impl Default for BoxedUUID {
+    fn default() -> BoxedUUID {
+        BoxedUUID(uuid::Uuid::new_v4().to_string())
+    }
+}
+
+/// Represents a group in the outliner.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Group {
+    pub name: String,
+    #[serde(default)]
+    pub origin: [f64; 3],
+    #[serde(default)]
+    pub color: u8,
+    pub uuid: BoxedUUID,
+    #[serde(default = "return_true")]
+    pub export: bool,
+    #[serde(default)]
+    pub mirror_uv: bool,
+    #[serde(default)]
+    pub isOpen: bool,
+    #[serde(default)]
+    pub locked: bool,
+    #[serde(default = "return_true")]
+    pub visibility: bool,
+    #[serde(default)]
+    pub autouv: u8,
+    #[serde(default)]
+    pub children: Vec<OutlinerItem>,
+}
+
+impl Default for Group {
+    fn default() -> Group {
+        Group {
+            name: Default::default(),
+            origin: Default::default(),
+            color: 0,
+            uuid: Default::default(),
+            export: true,
+            mirror_uv: false,
+            isOpen: false,
+            locked: false,
+            visibility: true,
+            autouv: 0,
+            children: vec![],
+        }
+    }
 }
 
 /// A type of element with a model, excluding groups.

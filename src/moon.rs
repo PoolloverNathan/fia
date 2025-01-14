@@ -186,6 +186,70 @@ pub struct ModelPart {
     pub data: ModelData,
 }
 
+use crate::bbmodel::{self, Element, OutlinerItem, Hierarchy};
+impl ModelPart {
+    /// Converts the [`ModelPart`]'s hierarchy to an [`OutlinerItem`], writing any leaf [`Element`]s
+    /// encountered to the passed vector.
+    pub fn convert_elements(self, elements: &mut Vec<Element>) -> OutlinerItem {
+        use bbmodel::{ElementType, Group};
+        let ModelPart { name, chld, rot, piv, pt, vsb, data, .. } = self;
+        let part = bbmodel::Element {
+            allow_mirror_modeling: true,
+            color: 0,
+            export: Some(true),
+            extra: match data {
+                ModelData::Group {} => return OutlinerItem::Group(Group {
+                    name,
+                    origin: piv,
+                    children: chld.into_vec().into_iter().map(|p: ModelPart| p.convert_elements(elements)).collect(),
+                    ..Default::default()
+                }),
+                ModelData::Cube { cube_data, t, f, inf } => {
+                    assert!(chld.len() == 0);
+                    ElementType::Cube {
+                        from: f,
+                        to: t,
+                        uv_offset: None,
+                        faces: bbmodel::Faces {
+                            north: cube_data.n.map(Into::into),
+                            east:  cube_data.e.map(Into::into),
+                            south: cube_data.s.map(Into::into),
+                            west:  cube_data.w.map(Into::into),
+                            up:    cube_data.u.map(Into::into),
+                            down:  cube_data.d.map(Into::into),
+                        },
+                        autouv: 0,
+                        box_uv: None,
+                        inflate: Some(inf),
+                        light_emission: None,
+                        mirror_uv: false.into(),
+                        rescale: false,
+                        shade: None,
+                    }
+                },
+                ModelData::Mesh { mesh_data } => todo!("convert_elements for meshes"),
+            },
+            locked: false,
+            name,
+            origin: piv,
+            render_order: None,
+            rotation: rot,
+            uuid: uuid::Uuid::new_v4().to_string(),
+            visibility: Some(vsb),
+        };
+        let uuid = part.uuid.clone();
+        elements.push(part);
+        OutlinerItem::Element(uuid)
+    }
+    /// Creates a [`Hierarchy`] from a ModelPart. The part must be of type [`ModelData::Group`]; if
+    /// not, it will be returned to you.
+    pub fn hierarchy(self) -> Result<Hierarchy, ModelPart> {
+        let mut elements = vec![];
+        let ModelData::Group {} = self.data else { return Err(self) };
+        Ok(Hierarchy { outliner: self.chld.into_vec().into_iter().map(|p| p.convert_elements(&mut elements)).collect(), elements })
+    }
+}
+
 /// Stores extra data for a modelpart depending on what type of model it has, if any.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -245,6 +309,16 @@ pub struct Face {
     /// How the face is rotated.
     #[serde(default)]
     pub rot: f64,
+}
+
+impl Into<crate::bbmodel::Face> for Face {
+    fn into(self) -> crate::bbmodel::Face {
+        crate::bbmodel::Face {
+            rotation: self.rot,
+            texture: self.tex.into(),
+            uv: self.uv,
+        }
+    }
 }
 
 /// Texture and vertex information for meshes. Figura stores this in a horrifying way that makes it

@@ -214,6 +214,9 @@ pub enum Action {
         /// Path to the avatar file to show.
         #[arg()]
         path: PathBuf,
+        /// Instead of generating JSON, generate a modelpart hierarchy.
+        #[arg(short = 'y', long)]
+        hierarchy: bool,
         #[command(flatten)]
         #[allow(missing_docs)]
         modify: MoonModifications,
@@ -370,7 +373,7 @@ fn main() -> io::Result<()> {
             let data: Result<BBModel, _> = serde_json::from_reader(file);
             println!("{data:#?}");
         },
-        Action::Element { path, index, modify } => {
+        Action::Element { path, hierarchy, index, modify } => {
             let file = File::open(path)?;
             // FIXME: don't panic
             let (mut moon, tag_name) = get_moon_with_name(file).expect("loading moon failed");
@@ -379,56 +382,22 @@ fn main() -> io::Result<()> {
             for i in index {
                 node = node.chld.into_vec().swap_remove(i);
             }
-            let moon::ModelPart { name, rot, piv, vsb, data, .. } = node;
-            use moon::{ModelData as M, MeshData, Sided, Face as MFace};
-            use bbmodel::{ElementType as E, Faces, Face};
-            fn convert_face(MFace { tex, uv, rot }: MFace) -> Face {
-                Face {
-                    rotation: rot,
-                    texture: tex.into(),
-                    uv,
+            if hierarchy {
+                if let Ok(value) = node.hierarchy() {
+                    println!("{}", serde_json::to_string(&value).unwrap());
+                } else {
+                    panic!("user error");
                 }
+            } else {
+                let mut elements = vec![];
+                let item = node.convert_elements(&mut elements);
+                for element in elements {
+                    let value = serde_json::to_string(&element).unwrap();
+                    println!("{value}");
+                }
+                let value = serde_json::to_string(&item).unwrap();
+                println!("{value}");
             }
-            let part = bbmodel::Element {
-                allow_mirror_modeling: true,
-                color: 0,
-                export: Some(true),
-                extra: match data {
-                    M::Group {} => unimplemented!("converting group to element"),
-                    M::Cube { cube_data: Sided { n, e, s, w, u, d }, f, t, inf } => E::Cube {
-                        from: f,
-                        to: t,
-                        uv_offset: None,
-                        faces: Faces {
-                            north: n.map(convert_face),
-                            east:  e.map(convert_face),
-                            south: s.map(convert_face),
-                            west:  w.map(convert_face),
-                            up:    u.map(convert_face),
-                            down:  d.map(convert_face),
-                        },
-                        autouv: 0,
-                        box_uv: None,
-                        inflate: Some(inf),
-                        light_emission: None,
-                        mirror_uv: false.into(),
-                        rescale: false,
-                        shade: None,
-                    },
-                    M::Mesh { mesh_data } => {
-                        todo!("mesh {mesh_data:#?}")
-                    },
-                },
-                locked: false,
-                name,
-                origin: piv,
-                render_order: None,
-                rotation: rot,
-                uuid: uuid::Uuid::new_v4().to_string(),
-                visibility: Some(vsb),
-            };
-            let value = serde_json::to_string(&part).unwrap();
-            println!("{value}");
         },
         Action::Pack { .. } => todo!(),
         #[cfg(feature = "unpack")]
