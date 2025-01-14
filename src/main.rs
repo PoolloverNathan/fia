@@ -366,6 +366,24 @@ fn main() -> io::Result<()> {
                         println!("• \x1b[1m{} script{}", moon.scripts.len(), if moon.scripts.len() == 1 { "" } else { "s" });
                     }
                 }
+                if let Some(models) = moon.models {
+                    println!("\n\x1b[1;4mModels\x1b[21;22;24m");
+                    use moon::{ ModelPart, ModelData };
+                    fn recurse_tree(part: &ModelPart, indent: usize) {
+                        for _ in 0..indent { print!("  ") }
+                        match part.data {
+                            ModelData::Cube { .. } => println!("• \x1b[34m{}\x1b[m", part.name),
+                            ModelData::Mesh { ref mesh_data } => println!("• \x1b[31m{}\x1b[0;2m ({}f, {}v)\x1b[22m", part.name, mesh_data.tex.len(), mesh_data.uvs.len()),
+                            ModelData::Group {} => println!("• {}", part.name),
+                        }
+                        for m in &part.chld {
+                            recurse_tree(m, indent + 1);
+                        }
+                    }
+                    for m in &models.chld {
+                        recurse_tree(m, 0);
+                    }
+                }
             }
         }
         Action::ParseBbmodel { file } => {
