@@ -248,6 +248,9 @@ pub enum Action {
         #[command(flatten)]
         #[allow(missing_docs)]
         modify: MoonModifications,
+        /// Which modelparts represent folders in the model hiearchy (as opposed to folders).
+        #[arg(short = 't', long, value_name = "PATH")]
+        folder: Vec<String>,
         /// Which files to unpack, if not all.
         #[arg()]
         paths: Option<Vec<String>>,
@@ -420,7 +423,7 @@ fn main() -> io::Result<()> {
         },
         Action::Pack { .. } => todo!(),
         #[cfg(feature = "unpack")]
-        Action::Unpack { file, out, modify, paths, mut dump_models } => {
+        Action::Unpack { file, out, modify, paths, folder, mut dump_models } => {
             let file = File::open(file)?;
             // FIXME: don't panic
             let mut moon = get_moon(file).expect("no opening moon");
@@ -431,7 +434,6 @@ fn main() -> io::Result<()> {
             macro_rules! add_if_whitelisted {
                 ($name:expr => $data:expr) => {
                     let name: &str = $name;
-                    let data: &[u8] = $data;
                     'a: {
                         if let Some(paths) = &paths {
                             let mut whitelisted = false;
@@ -441,12 +443,14 @@ fn main() -> io::Result<()> {
                                 } else {
                                     name == *prefix
                                 } {
+                                    let data: &[u8] = $data;
                                     contents.insert(out.join(Path::new(&name)), data);
                                     break 'a
                                 }
                             }
                             omitted += 1;
                         } else {
+                            let data: &[u8] = $data;
                             contents.insert(out.join(Path::new(&name)), data);
                         }
                     }
@@ -472,6 +476,16 @@ fn main() -> io::Result<()> {
             }
             if let Some((path, data)) = &dump_model_guard {
                 add_if_whitelisted!(&path => &data);
+            }
+            if let Some(models) = models {
+                for part in models.chld.into_vec() {
+                    add_if_whitelisted!(&(part.name.clone() + ".bbmodel") => {
+                        let Ok(hier) = part.hierarchy() else { panic!("you smell bad") };
+                        let model: BBModel = hier.into();
+                        let json = serde_json::to_string(&model).expect("failed to process model root");
+                        json.leak().as_bytes()
+                    });
+                }
             }
             // if models.chld.len() > 0 {
                 // eprintln!("warning: extracting models not supported yet")

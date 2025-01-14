@@ -5,10 +5,13 @@ use std::ffi::OsStr;
 use serde::{Serialize, Deserialize};
 use serde_repr::{Serialize_repr, Deserialize_repr};
 use serde_json::{Value, Number, Map};
+use derivative::Derivative;
+use derive_more::*;
 type Any = Option<Value>;
 type Object = Map<Value, Value>;
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Derivative)]
+#[derivative(Default)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct BBModel {
@@ -32,14 +35,18 @@ pub struct BBModel {
     pub unhandled_root_fields: Any,
     pub variable_placeholder_buttons: Vec<Value>,
     pub variable_placeholders: String,
-    pub visible_box: Option<[Number; 3]>,
+    #[derivative(Default(value = "Some([1.0, 1.0, 0.0])"))]
+    pub visible_box: Option<[f64; 3]>,
     pub texture_groups: Any,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Derivative)]
+#[derivative(Default)]
 #[serde(deny_unknown_fields)]
 pub struct Resolution {
+    #[derivative(Default(value = "16"))]
     height: usize,
+    #[derivative(Default(value = "16"))]
     width: usize,
 }
 
@@ -78,7 +85,7 @@ struct Texture {
 }
 
 /// Contains metadata about this model important for making sense of the contents.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Meta {
     /// The model's format version. Although this is stored, it is ignored when serializing or
@@ -90,6 +97,16 @@ pub struct Meta {
     /// use Box UV.
     #[serde(default)]
     box_uv: bool,
+}
+
+impl Default for Meta {
+    fn default() -> Meta {
+        Meta {
+            format_version: Default::default(),
+            model_format: "free".into(),
+            box_uv: false,
+        }
+    }
 }
 
 /// One animation in the model.
@@ -254,6 +271,13 @@ impl From<BBModel> for Hierarchy {
     }
 }
 
+impl Into<BBModel> for Hierarchy {
+    fn into(self) -> BBModel {
+        let Hierarchy { elements, outliner } = self;
+        BBModel { elements, outliner, ..Default::default() }
+    }
+}
+
 impl Hierarchy {
     pub fn textures(&self) -> std::collections::HashSet<usize> {
         let mut set = Default::default();
@@ -320,9 +344,9 @@ pub enum OutlinerItem {
     Element(String),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, From, Into)]
 #[serde(transparent)]
-struct BoxedUUID(String);
+pub struct BoxedUUID(pub String);
 impl Default for BoxedUUID {
     fn default() -> BoxedUUID {
         BoxedUUID(uuid::Uuid::new_v4().to_string())

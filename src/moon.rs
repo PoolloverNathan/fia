@@ -13,6 +13,8 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use serde::{Serialize, Deserialize};
 use quartz_nbt::{NbtTag, serde::Array};
+use std::hash::Hash;
+use derivative::Derivative;
 
 /// The top-level of a Figura avatar. This structure contains maps for avatar information, but
 /// since Figura may add more keys at any time, this cannot be exhaustive.
@@ -154,20 +156,25 @@ pub type RenderType = String;
 /// One of the parts on a model. This can be a group, cube, or mesh, and unrelatedly to this
 /// distinction can have children. Unlike other Figura types, this is [stored as a
 /// *tree*][Moon::models].
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize, Derivative)]
+#[derivative(Hash)]
 pub struct ModelPart {
     /// The name of this modelpart.
     pub name: String,
     /// This modelpart's children.
     #[serde(default)]
     pub chld: Box<[ModelPart]>,
-    /// Presumably animation-related; unsure.
+    /// Presumably animation-related; unsure. This will be ignored when hashing until it becomes
+    /// fully typed.
+    #[derivative(Hash = "ignore")]
     pub anim: Option<NbtTag>,
-    /// Rotation of this model part.
+    /// Rotation of this model part. This is floating-point and therefore ignored when hashing.
     #[serde(default)]
+    #[derivative(Hash = "ignore")]
     pub rot: [f64; 3],
-    /// Pivot point of this model part.
+    /// Pivot point of this model part. This is floating-point and therefore ignored when hashing.
     #[serde(default)]
+    #[derivative(Hash = "ignore")]
     pub piv: [f64; 3],
     /// Primary render type (used for primary texture).
     pub primary: Option<RenderType>,
@@ -194,7 +201,16 @@ impl ModelPart {
     /// Converts the [`ModelPart`]'s hierarchy to an [`OutlinerItem`], writing any leaf [`Element`]s
     /// encountered to the passed vector.
     pub fn convert_elements(self, elements: &mut Vec<Element>) -> OutlinerItem {
+        use uuid::{Uuid, uuid};
         use bbmodel::{ElementType, Group};
+        const CONVERT_NS: Uuid = uuid!("82703e95-07cb-41eb-8591-0ae63fc1e2db");
+        let hash = {
+            use std::hash::{Hasher, DefaultHasher};
+            let mut h = DefaultHasher::new();
+            self.hash(&mut h);
+            h.finish()
+        };
+        println!("{hash}");
         let ModelPart { name, chld, rot, piv, pt, vsb, data, .. } = self;
         let part = bbmodel::Element {
             allow_mirror_modeling: true,
@@ -205,6 +221,7 @@ impl ModelPart {
                     name,
                     origin: piv,
                     children: chld.into_vec().into_iter().map(|p: ModelPart| p.convert_elements(elements)).collect(),
+                    uuid: Uuid::new_v5(&CONVERT_NS, &hash.to_le_bytes()).to_string().into(),
                     ..Default::default()
                 }),
                 ModelData::Cube { cube_data, t, f, inf } => {
@@ -230,14 +247,14 @@ impl ModelPart {
                         shade: None,
                     }
                 },
-                ModelData::Mesh { mesh_data } => todo!("convert_elements for meshes"),
+                ModelData::Mesh { mesh_data } => return OutlinerItem::Group(Group { name, origin: piv, uuid: Uuid::new_v5(&CONVERT_NS, &hash.to_le_bytes()).to_string().into(), ..Default::default() }), // TODO: implement mesh conversion
             },
             locked: false,
             name,
             origin: piv,
             render_order: None,
             rotation: rot,
-            uuid: uuid::Uuid::new_v4().to_string(),
+            uuid: Uuid::new_v5(&CONVERT_NS, &hash.to_le_bytes()).to_string(),
             visibility: Some(vsb),
         };
         let uuid = part.uuid.clone();
@@ -254,26 +271,31 @@ impl ModelPart {
 }
 
 /// Stores extra data for a modelpart depending on what type of model it has, if any.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Derivative)]
+#[derivative(Hash)]
 #[serde(untagged)]
 #[serde(deny_unknown_fields)]
 pub enum ModelData {
     /// A group, with no model data.
     Group {},
-    /// A cube, which is not a cube (more generally, it's a rectangular prism).
+    /// A cube, which is not a cube (more generally, it's a rectangular prism). Most cube fields
+    /// are ignored when hashing!
     Cube {
         /// Maps each side of the cube to its UV and texture data.
         cube_data: Sided<Face>,
         /// The point where the cube begins. I'm unsure of what coordinate space this location is
         /// in.
+        #[derivative(Hash = "ignore")]
         f: [f64; 3],
         /// The point where the cube begins. May be less than [f][Self::f] for inverted cubes. This
         /// is probably in the same coordinate space as [f][Self::f].
+        #[derivative(Hash = "ignore")]
         t: [f64; 3],
         /// The cube's inflate scale. This is equivalent to subtracting this value from each number
         /// in [f][Self::f] and adding it to each value in [t][Self::t], except it doesn't affect
         /// Blockbench's generated UVs.
         #[serde(default)]
+        #[derivative(Hash = "ignore")]
         inf: f64,
     },
     /// A mesh, which supports freely adding and moving faces at the expense of file size.
@@ -284,7 +306,7 @@ pub enum ModelData {
 }
 
 /// Maps each side of something (such as a cube) to an object.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Hash)]
 #[serde(deny_unknown_fields)]
 pub struct Sided<S> {
     /// The north face.
@@ -303,14 +325,18 @@ pub struct Sided<S> {
 
 /// Texture and UV information for each face of a cube.
 #[serde(deny_unknown_fields)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Derivative)]
+#[derivative(Hash)]
 pub struct Face {
     /// The texture ID in [Textures::data].
     pub tex: usize,
-    /// The UV information (presumably `[x0, y0, x1, y1]`, but I haven't confirmed this).
+    /// The UV information (presumably `[x0, y0, x1, y1]`, but I haven't confirmed this). Ignored
+    /// when hashing.
+    #[derivative(Hash = "ignore")]
     pub uv: [f64; 4],
-    /// How the face is rotated.
+    /// How the face is rotated. Ignored when hashing.
     #[serde(default)]
+    #[derivative(Hash = "ignore")]
     pub rot: f64,
 }
 
@@ -327,10 +353,13 @@ impl Into<crate::bbmodel::Face> for Face {
 /// Texture and vertex information for meshes. Figura stores this in a horrifying way that makes it
 /// difficult to handle from structs. I doubt the comments in the source code are even correct —
 /// I'm too scared to go through this shit. May the odds be ever in your favor.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Derivative)]
+#[derivative(Hash)]
 #[serde(deny_unknown_fields)]
 pub struct MeshData {
-    /// The X, Y, and Z position of each vertex, consecutively.
+    /// The X, Y, and Z position of each vertex, consecutively. These are not considered for
+    /// hashing.
+    #[derivative(Hash = "ignore")]
     pub vtx: Box<[f64]>,
     /// The texture ID (see [Textures::data]) left-shifted 4, plus the number of vertices in the
     /// face.
@@ -338,12 +367,13 @@ pub struct MeshData {
     /// The face list. The type of this field depends on the number of elements in
     /// [`vtx`][Self::vtx], since the designers of this format hate people.
     pub fac: Fac,
-    /// UVs, aka hell.
+    /// UVs, aka hell. These are not considered for hashing.
+    #[derivative(Hash = "ignore")]
     pub uvs: Box<[f64]>,
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Hash)]
 #[serde(untagged)]
 pub enum Fac {
     U8(Vec<i8>),
@@ -360,7 +390,7 @@ impl Default for ModelData {
 /// A parent type determined by Figura. Although usually the parent type can be determined based on
 /// the [ModelPart]'s name, Figura for some reason stores a copy anyway. This enum documents each
 /// possible parent type.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Hash)]
 #[allow(missing_docs)]
 pub enum ParentType {
     /// No parent type — follows parent's rotations.
