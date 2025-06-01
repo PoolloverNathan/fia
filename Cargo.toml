@@ -27,7 +27,6 @@ derive_more = { version = "1.0.0", features = ["from", "into"] }
 
 [features]
 backend = []
-pull = []
 unpack = []
 full = ["backend", "unpack"]
-default = ["full"]
+default = ["unpack"]

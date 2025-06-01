@@ -145,6 +145,7 @@ impl MoonModifications {
 pub enum Action {
     #[cfg_attr(feature = "unpack", doc = "Upload an avatar or compiled moon to the Figura backend.")]
     #[cfg_attr(not(feature = "unpack"), doc = "Upload an avatar directory to the Figura backend.")]
+    #[cfg(feature = "backend")]
     Push {
         /// Path to the avatar to pack and upload.
         #[arg(required = true)]
@@ -158,7 +159,8 @@ pub enum Action {
         modify: MoonModifications,
     },
     /// Download an avatar from the cloud by UUID or player name.
-    #[cfg(feature = "pull")]
+    #[cfg(feature = "unpack")]
+    #[cfg(feature = "backend")]
     Pull {
         /// String or UUID (or avatar ID with -A) to download.
         #[arg(required = true)]
@@ -210,6 +212,7 @@ pub enum Action {
         file: PathBuf,
     },
     /// Generates element JSON for a model.
+    #[command(hide = true)]
     Element {
         /// Path to the avatar file to show.
         #[arg()]
@@ -225,6 +228,7 @@ pub enum Action {
         index: Vec<usize>,
     },
     /// Create an avatar file from a directory.
+    #[command(hide = true)]
     Pack {
         /// Path to avatar data to pack. Defaults to current directory.
         #[arg(default_value = ".")]
@@ -238,6 +242,18 @@ pub enum Action {
     },
     #[cfg(feature = "unpack")]
     /// Unpack the contents of an avatar file.
+    ///
+    /// Usage of this command is frowned upon. Many people's avatars are special to them, and
+    /// unpacking them without permission is somewhat rude. Generally, people will be open to
+    /// sharing code when asked, which is much less risky.
+    ///
+    /// When using this command, always follow the rules:
+    /// * Don't unpack avatars if you're denied permission.
+    /// * Never upload the generated files as an avatar.
+    /// * Never use code or models from unpacked avatars without permission.
+    ///
+    /// Breaking the rules can lead to backend bans, or if you piss off the wrong person, copyright
+    /// claims and legal costs.
     Unpack {
         /// Path to the avatar data to unpack.
         #[arg()]
@@ -307,10 +323,12 @@ fn get_moon(mut file: impl Read) -> Result<Moon, NbtIoError> {
 
 fn main() -> io::Result<()> {
     match Action::parse() {
+        #[cfg(feature = "backend")]
         Action::Push { avatar, modify, #[cfg(feature = "unpack")] moon } => {
             todo!()
         }
-        #[cfg(feature = "pull")]
+        #[cfg(feature = "unpack")]
+        #[cfg(feature = "backend")]
         Action::Pull { target, avatar_id, out, cem, pack_root, modify, #[cfg(feature = "unpack")] unpack } => {
             todo!()
         }
