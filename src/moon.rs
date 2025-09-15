@@ -3,18 +3,19 @@
 //! wardrobe, and are stored on the backend when uploading. When Figura creates a moon, a lot of
 //! data is lost, complicating reverse conversion. This struct aims to capture everything Figura
 //! *does* store, and can be used to:
-//! 
+//!
 //! * Analyze avatar size.
 //! * Create avatars entirely from Rust code.
 //! * Load avatars from the filesystem (e.g. `/figura export avatar`).
 //! * Upload avatars to the backend, when I get around to implementing backend connections.
 
+use derivative::Derivative;
+use quartz_nbt::{serde::Array, NbtTag};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use serde::{Serialize, Deserialize};
-use quartz_nbt::{NbtTag, serde::Array};
 use std::hash::Hash;
-use derivative::Derivative;
+use uuid::Uuid;
 
 /// The top-level of a Figura avatar. This structure contains maps for avatar information, but
 /// since Figura may add more keys at any time, this cannot be exhaustive.
@@ -22,43 +23,43 @@ use derivative::Derivative;
 #[serde(deny_unknown_fields)]
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Moon {
-    /// Textures associated with this avatar, found in a bbmodel.
-    #[serde(default)]
-    pub textures: Textures,
-    /// This avatar's scripts (stored as `u8`s since Lua is not neccessarily UTF-8).
-    #[serde(default)]
-    pub scripts: HashMap<String, Array<Vec<u8>>>,
-    /// This avatar's animations. I haven't investigated this struct's layout yet.
-    #[serde(default)]
-    pub animations: Vec<NbtTag>,
-    /// The root of the [ModelPart] hierarchy. This can technically be omitted, although I have
-    /// always seen it present in practice.
-    #[serde(default)]
-    pub models: Option<ModelPart>,
-    /// Resources available to [ResourcesAPI]. These are arbitrary binary data blobs included in
-    /// the avatar folder and uploaded to the backend. I haven't seen a practical use of resources
-    /// yet, but I include them anyway.
-    ///
-    /// [ResourcesAPI]: https://applejuiceyy.github.io/figs/latest/ResourcesAPI/
-    #[serde(default)]
-    pub resources: HashMap<String, Array<Vec<u8>>>,
-    /// Additional metadata loaded from `avatar.json`.
-    #[serde(default)]
-    pub metadata: Metadata,
+  /// Textures associated with this avatar, found in a bbmodel.
+  #[serde(default)]
+  pub textures: Textures,
+  /// This avatar's scripts (stored as `u8`s since Lua is not neccessarily UTF-8).
+  #[serde(default)]
+  pub scripts: HashMap<String, Array<Vec<u8>>>,
+  /// This avatar's animations. I haven't investigated this struct's layout yet.
+  #[serde(default)]
+  pub animations: Vec<NbtTag>,
+  /// The root of the [ModelPart] hierarchy. This can technically be omitted, although I have
+  /// always seen it present in practice.
+  #[serde(default)]
+  pub models: Option<ModelPart>,
+  /// Resources available to [ResourcesAPI]. These are arbitrary binary data blobs included in
+  /// the avatar folder and uploaded to the backend. I haven't seen a practical use of resources
+  /// yet, but I include them anyway.
+  ///
+  /// [ResourcesAPI]: https://applejuiceyy.github.io/figs/latest/ResourcesAPI/
+  #[serde(default)]
+  pub resources: HashMap<String, Array<Vec<u8>>>,
+  /// Additional metadata loaded from `avatar.json`.
+  #[serde(default)]
+  pub metadata: Metadata,
 }
 
 /// Stores the mapping of texture data sources and the list of textures available to modelparts.
 #[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Textures {
-    /// Raw texture data. The values of this map are PNG-encoded images, but I'm not masochistic
-    /// enough to include PNG deserialization in a Figura avatar parser module.
-    #[serde(default)]
-    pub src: HashMap<String, Array<Vec<u8>>>,
-    /// An indexed list associating each texture ID (used by [Face::tex] and [MeshData::tex]) with
-    /// each texture type.
-    #[serde(default)]
-    pub data: Box<[TextureData]>,
+  /// Raw texture data. The values of this map are PNG-encoded images, but I'm not masochistic
+  /// enough to include PNG deserialization in a Figura avatar parser module.
+  #[serde(default)]
+  pub src: HashMap<String, Array<Vec<u8>>>,
+  /// An indexed list associating each texture ID (used by [Face::tex] and [MeshData::tex]) with
+  /// each texture type.
+  #[serde(default)]
+  pub data: Box<[TextureData]>,
 }
 
 /// A set of textures used by modelparts.
@@ -66,11 +67,11 @@ pub struct Textures {
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct TextureData {
-    /// The primary texture, which is not given a name suffix.
-    pub d: String,
-    /// The secondary (emissive) texture, which usually has the same name as [`d`] but with an `_e`
-    /// suffixed.
-    pub e: Option<String>,
+  /// The primary texture, which is not given a name suffix.
+  pub d: String,
+  /// The secondary (emissive) texture, which usually has the same name as [`d`] but with an `_e`
+  /// suffixed.
+  pub e: Option<String>,
 }
 
 /// Unused. I don't remember writing this struct.
@@ -78,16 +79,16 @@ pub struct TextureData {
 #[serde(deny_unknown_fields)]
 #[allow(missing_docs)]
 pub struct Animation {
-    #[serde(default)]
-    pub r#loop: Option<Loop>,
-    #[serde(default)]
-    pub name: String,
-    #[serde(default)]
-    pub ovr: u8,
-    #[serde(default)]
-    pub mdl: String,
-    #[serde(default)]
-    pub len: f64,
+  #[serde(default)]
+  pub r#loop: Option<Loop>,
+  #[serde(default)]
+  pub name: String,
+  #[serde(default)]
+  pub ovr: u8,
+  #[serde(default)]
+  pub mdl: String,
+  #[serde(default)]
+  pub len: f64,
 }
 
 /// A loop mode. This could technically have non-looping, although I have only seen it omitted in
@@ -96,11 +97,11 @@ pub struct Animation {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Loop {
-    /// The animation will return to the beginning when it hits the end.
-    Loop,
-    /// The animation will maintain the values of the last keyframe after the end. For legal
-    /// reasons, the animation will still be considered playing while holding.
-    Hold,
+  /// The animation will return to the beginning when it hits the end.
+  Loop,
+  /// The animation will maintain the values of the last keyframe after the end. For legal
+  /// reasons, the animation will still be considered playing while holding.
+  Hold,
 }
 
 /// Extra avatar data found almost-exactly in `avatar.json`. This is usually safe to dump to JSON
@@ -108,26 +109,26 @@ pub enum Loop {
 #[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Metadata {
-    /// The avatar's UUID, for some reasom?
-    #[serde(default)]
-    pub uuid: String,
-    /// Author(s) of the model. If unspecified, is the single author `"?"`.
-    #[serde(default)]
-    pub authors: Authors,
-    /// The avatar's color (used for e.g. UI theming and the Figura mark). This should ideally be a
-    /// hex code, but Figura may accept certain color names.
-    #[serde(default)]
-    pub color: String,
-    /// The display name of the avatar. Rarely used in Figura.
-    #[serde(default)]
-    pub name: String,
-    /// The display text of the avatar in the avatar list. This is not normally visible once the
-    /// avatar is loaded, and is only visible under the avatar's name in the wardrobe.
-    #[serde(default)]
-    pub description: String,
-    /// Target Figura version, if specified.
-    #[serde(default)]
-    pub ver: String,
+  /// The avatar's UUID, for some reasom?
+  #[serde(default)]
+  pub uuid: String,
+  /// Author(s) of the model. If unspecified, is the single author `"?"`.
+  #[serde(default)]
+  pub authors: Authors,
+  /// The avatar's color (used for e.g. UI theming and the Figura mark). This should ideally be a
+  /// hex code, but Figura may accept certain color names.
+  #[serde(default)]
+  pub color: String,
+  /// The display name of the avatar. Rarely used in Figura.
+  #[serde(default)]
+  pub name: String,
+  /// The display text of the avatar in the avatar list. This is not normally visible once the
+  /// avatar is loaded, and is only visible under the avatar's name in the wardrobe.
+  #[serde(default)]
+  pub description: String,
+  /// Target Figura version, if specified.
+  #[serde(default)]
+  pub ver: String,
 }
 
 /// Represents the author or authors of an avatar. Figura, for some strange reason, differentiates
@@ -136,18 +137,20 @@ pub struct Metadata {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Authors {
-    /// One author, or the pseudoauthor `"?"`.
-    Author(String),
-    /// Multiple authors.
-    Authors(Vec<String>),
+  /// One author, or the pseudoauthor `"?"`.
+  Author(String),
+  /// Multiple authors.
+  Authors(Vec<String>),
 }
 impl Default for Authors {
-    fn default() -> Self {
-        Authors::Authors(vec![])
-    }
+  fn default() -> Self {
+    Authors::Authors(vec![])
+  }
 }
 
-fn return_true() -> bool { true }
+fn return_true() -> bool {
+  true
+}
 
 /// Represents one of Figura's supported render types.
 // TODO: make enum
@@ -159,115 +162,199 @@ pub type RenderType = String;
 #[derive(Default, Debug, Serialize, Deserialize, Derivative)]
 #[derivative(Hash)]
 pub struct ModelPart {
-    /// The name of this modelpart.
-    pub name: String,
-    /// This modelpart's children.
-    #[serde(default)]
-    pub chld: Box<[ModelPart]>,
-    /// Presumably animation-related; unsure. This will be ignored when hashing until it becomes
-    /// fully typed.
-    #[derivative(Hash = "ignore")]
-    pub anim: Option<NbtTag>,
-    /// Rotation of this model part. This is floating-point and therefore ignored when hashing.
-    #[serde(default)]
-    #[derivative(Hash = "ignore")]
-    pub rot: [f64; 3],
-    /// Pivot point of this model part. This is floating-point and therefore ignored when hashing.
-    #[serde(default)]
-    #[derivative(Hash = "ignore")]
-    pub piv: [f64; 3],
-    /// Primary render type (used for primary texture).
-    pub primary: Option<RenderType>,
-    /// Secondary render type (used for emissive texture, if any).
-    pub secondary: Option<RenderType>,
-    /// Parent type if the name contains one (or it's applied by a customization).
-    pub pt: Option<ParentType>,
-    /// Whether this cube is visible.
-    #[serde(default = "return_true")]
-    pub vsb: bool,
-    /// Whether to smooth the part's normals. Overridden if FORCE_SMOOTH_AVATAR is enabled. Only
-    /// has an effect when the modelpart has vertices, i.e. is not a group.
-    #[serde(default)]
-    pub smo: bool,
-    /// Extra information that depends on the part type. Since cubes have extra top-level keys,
-    /// this can't simply be an externally-tagged enum — instead, the enum is untagged and this
-    /// field is flattened.
-    #[serde(flatten)]
-    pub data: ModelData,
+  /// The name of this modelpart.
+  pub name: String,
+  /// This modelpart's children.
+  #[serde(default)]
+  pub chld: Box<[ModelPart]>,
+  /// Presumably animation-related; unsure. This will be ignored when hashing until it becomes
+  /// fully typed.
+  #[derivative(Hash = "ignore")]
+  pub anim: Option<NbtTag>,
+  /// Rotation of this model part. This is floating-point and therefore ignored when hashing.
+  #[serde(default)]
+  #[derivative(Hash = "ignore")]
+  pub rot: [f64; 3],
+  /// Pivot point of this model part. This is floating-point and therefore ignored when hashing.
+  #[serde(default)]
+  #[derivative(Hash = "ignore")]
+  pub piv: [f64; 3],
+  /// Primary render type (used for primary texture).
+  pub primary: Option<RenderType>,
+  /// Secondary render type (used for emissive texture, if any).
+  pub secondary: Option<RenderType>,
+  /// Parent type if the name contains one (or it's applied by a customization).
+  pub pt: Option<ParentType>,
+  /// Whether this cube is visible.
+  #[serde(default = "return_true")]
+  pub vsb: bool,
+  /// Whether to smooth the part's normals. Overridden if FORCE_SMOOTH_AVATAR is enabled. Only
+  /// has an effect when the modelpart has vertices, i.e. is not a group.
+  #[serde(default)]
+  pub smo: bool,
+  /// Extra information that depends on the part type. Since cubes have extra top-level keys,
+  /// this can't simply be an externally-tagged enum — instead, the enum is untagged and this
+  /// field is flattened.
+  #[serde(flatten)]
+  pub data: ModelData,
+  /// This modelpart's UUID, stored as four ints for compactness.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub nr: Option<[u32; 4]>,
+  /// List of collections in this part. The presence of this tag proves a modelpart comes from a Blockbench model.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub cn: Option<Vec<String>>,
+  /// List of collections this part is a member of, as indices into a parent part's [`cn`](ModelPart::cn) tag.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub pr: Option<Vec<u32>>,
 }
 
-use crate::bbmodel::{self, Element, OutlinerItem, Hierarchy};
+// door pin 6485
+use crate::bbmodel::{self, Element, Hierarchy, OutlinerItem};
 impl ModelPart {
-    /// Converts the [`ModelPart`]'s hierarchy to an [`OutlinerItem`], writing any leaf [`Element`]s
-    /// encountered to the passed vector.
-    pub fn convert_elements(self, elements: &mut Vec<Element>) -> OutlinerItem {
-        use uuid::{Uuid, uuid};
-        use bbmodel::{ElementType, Group};
-        const CONVERT_NS: Uuid = uuid!("82703e95-07cb-41eb-8591-0ae63fc1e2db");
-        let hash = {
-            use std::hash::{Hasher, DefaultHasher};
+  /// Returns this part's saved UUID, or guesses one if it does not have one. Uses the given hash to avoid duplicates.
+  pub fn get_uuid_with_salt(&self, salt: impl Hash) -> Uuid {
+    match self.nr {
+      Some(x) => Uuid::from_u64_pair(
+        (x[0] as u64) << 32u64 | x[1] as u64,
+        (x[2] as u64) << 32u64 | x[3] as u64,
+      ),
+      None => {
+        const CONVERT_NS: Uuid = uuid::uuid!("82703e95-07cb-41eb-8591-0ae63fc1e2db");
+        Uuid::new_v5(
+          &CONVERT_NS,
+          &{
+            use std::hash::{DefaultHasher, Hasher};
+            let mut h = DefaultHasher::new();
+            salt.hash(&mut h);
+            self.hash(&mut h);
+            h.finish()
+          }
+          .to_le_bytes(),
+        )
+      }
+    }
+  }
+  /// Returns this part's saved UUID, or guesses one if it does not have one.
+  pub fn get_uuid(&self) -> Uuid {
+    match self.nr {
+      Some(x) => Uuid::from_u64_pair(
+        (x[0] as u64) << 32u64 | x[1] as u64,
+        (x[2] as u64) << 32u64 | x[3] as u64,
+      ),
+      None => {
+        const CONVERT_NS: Uuid = uuid::uuid!("82703e95-07cb-41eb-8591-0ae63fc1e2db");
+        Uuid::new_v5(
+          &CONVERT_NS,
+          &{
+            use std::hash::{DefaultHasher, Hasher};
             let mut h = DefaultHasher::new();
             self.hash(&mut h);
             h.finish()
-        };
-        println!("{hash}");
-        let ModelPart { name, chld, rot, piv, pt, vsb, data, .. } = self;
-        let part = bbmodel::Element {
-            allow_mirror_modeling: true,
-            color: 0,
-            export: Some(true),
-            extra: match data {
-                ModelData::Group {} => return OutlinerItem::Group(Group {
-                    name,
-                    origin: piv,
-                    children: chld.into_vec().into_iter().map(|p: ModelPart| p.convert_elements(elements)).collect(),
-                    uuid: Uuid::new_v5(&CONVERT_NS, &hash.to_le_bytes()).to_string().into(),
-                    ..Default::default()
-                }),
-                ModelData::Cube { cube_data, t, f, inf } => {
-                    assert!(chld.len() == 0);
-                    ElementType::Cube {
-                        from: f,
-                        to: t,
-                        uv_offset: None,
-                        faces: bbmodel::Faces {
-                            north: cube_data.n.map(Into::into),
-                            east:  cube_data.e.map(Into::into),
-                            south: cube_data.s.map(Into::into),
-                            west:  cube_data.w.map(Into::into),
-                            up:    cube_data.u.map(Into::into),
-                            down:  cube_data.d.map(Into::into),
-                        },
-                        autouv: 0,
-                        box_uv: None,
-                        inflate: Some(inf),
-                        light_emission: None,
-                        mirror_uv: false.into(),
-                        rescale: false,
-                        shade: None,
-                    }
-                },
-                ModelData::Mesh { mesh_data } => return OutlinerItem::Group(Group { name, origin: piv, uuid: Uuid::new_v5(&CONVERT_NS, &hash.to_le_bytes()).to_string().into(), ..Default::default() }), // TODO: implement mesh conversion
-            },
-            locked: false,
+          }
+          .to_le_bytes(),
+        )
+      }
+    }
+  }
+  /// Converts the [`ModelPart`]'s hierarchy to an [`OutlinerItem`], writing any leaf [`Element`]s
+  /// encountered to the passed vector.
+  pub fn convert_elements(self, elements: &mut Vec<Element>) -> OutlinerItem {
+    use bbmodel::{ElementType, Group};
+    let uuid = self.get_uuid_with_salt(elements.len());
+    let ModelPart {
+      name,
+      chld,
+      rot,
+      piv,
+      pt,
+      vsb,
+      data,
+      ..
+    } = self;
+    let part = bbmodel::Element {
+      allow_mirror_modeling: true,
+      color: 0,
+      export: Some(true),
+      extra: match data {
+        ModelData::Group {} => {
+          return OutlinerItem::Group(Group {
             name,
             origin: piv,
-            render_order: None,
-            rotation: rot,
-            uuid: Uuid::new_v5(&CONVERT_NS, &hash.to_le_bytes()).to_string(),
-            visibility: Some(vsb),
-        };
-        let uuid = part.uuid.clone();
-        elements.push(part);
-        OutlinerItem::Element(uuid)
-    }
-    /// Creates a [`Hierarchy`] from a ModelPart. The part must be of type [`ModelData::Group`]; if
-    /// not, it will be returned to you.
-    pub fn hierarchy(self) -> Result<Hierarchy, ModelPart> {
-        let mut elements = vec![];
-        let ModelData::Group {} = self.data else { return Err(self) };
-        Ok(Hierarchy { outliner: self.chld.into_vec().into_iter().map(|p| p.convert_elements(&mut elements)).collect(), elements })
-    }
+            children: chld
+              .into_vec()
+              .into_iter()
+              .map(|p: ModelPart| p.convert_elements(elements))
+              .collect(),
+            uuid: uuid.to_string().into(),
+            ..Default::default()
+          })
+        }
+        ModelData::Cube {
+          cube_data,
+          t,
+          f,
+          inf,
+        } => {
+          assert!(chld.len() == 0);
+          ElementType::Cube {
+            from: f,
+            to: t,
+            uv_offset: None,
+            faces: bbmodel::Faces {
+              north: cube_data.n.map(Into::into).unwrap_or_default(),
+              east: cube_data.e.map(Into::into).unwrap_or_default(),
+              south: cube_data.s.map(Into::into).unwrap_or_default(),
+              west: cube_data.w.map(Into::into).unwrap_or_default(),
+              up: cube_data.u.map(Into::into).unwrap_or_default(),
+              down: cube_data.d.map(Into::into).unwrap_or_default(),
+            },
+            autouv: 0,
+            box_uv: None,
+            inflate: Some(inf),
+            light_emission: None,
+            mirror_uv: false.into(),
+            rescale: false,
+            shade: None,
+          }
+        }
+        ModelData::Mesh { mesh_data } => {
+          return OutlinerItem::Group(Group {
+            name,
+            origin: piv,
+            uuid: uuid.to_string().into(),
+            ..Default::default()
+          })
+        } // TODO: implement mesh conversion
+      },
+      locked: false,
+      name,
+      origin: piv,
+      render_order: None,
+      rotation: rot,
+      uuid: uuid.to_string(),
+      visibility: Some(vsb),
+    };
+    let uuid = part.uuid.clone();
+    elements.push(part);
+    OutlinerItem::Element(uuid)
+  }
+  /// Creates a [`Hierarchy`] from a ModelPart. The part must be of type [`ModelData::Group`]; if
+  /// not, it will be returned to you.
+  pub fn hierarchy(self) -> Result<Hierarchy, ModelPart> {
+    let mut elements = vec![];
+    let ModelData::Group {} = self.data else {
+      return Err(self);
+    };
+    Ok(Hierarchy {
+      outliner: self
+        .chld
+        .into_vec()
+        .into_iter()
+        .map(|p| p.convert_elements(&mut elements))
+        .collect(),
+      elements,
+    })
+  }
 }
 
 /// Stores extra data for a modelpart depending on what type of model it has, if any.
@@ -276,51 +363,51 @@ impl ModelPart {
 #[serde(untagged)]
 #[serde(deny_unknown_fields)]
 pub enum ModelData {
-    /// A group, with no model data.
-    Group {},
-    /// A cube, which is not a cube (more generally, it's a rectangular prism). Most cube fields
-    /// are ignored when hashing!
-    Cube {
-        /// Maps each side of the cube to its UV and texture data.
-        cube_data: Sided<Face>,
-        /// The point where the cube begins. I'm unsure of what coordinate space this location is
-        /// in.
-        #[derivative(Hash = "ignore")]
-        f: [f64; 3],
-        /// The point where the cube begins. May be less than [f][Self::f] for inverted cubes. This
-        /// is probably in the same coordinate space as [f][Self::f].
-        #[derivative(Hash = "ignore")]
-        t: [f64; 3],
-        /// The cube's inflate scale. This is equivalent to subtracting this value from each number
-        /// in [f][Self::f] and adding it to each value in [t][Self::t], except it doesn't affect
-        /// Blockbench's generated UVs.
-        #[serde(default)]
-        #[derivative(Hash = "ignore")]
-        inf: f64,
-    },
-    /// A mesh, which supports freely adding and moving faces at the expense of file size.
-    Mesh {
-        /// Data for meshes. To be honest, I'm surprised that Figura didn't flatten this struct.
-        mesh_data: MeshData,
-    },
+  /// A group, with no model data.
+  Group {},
+  /// A cube, which is not a cube (more generally, it's a rectangular prism). Most cube fields
+  /// are ignored when hashing!
+  Cube {
+    /// Maps each side of the cube to its UV and texture data.
+    cube_data: Sided<Face>,
+    /// The point where the cube begins. I'm unsure of what coordinate space this location is
+    /// in.
+    #[derivative(Hash = "ignore")]
+    f: [f64; 3],
+    /// The point where the cube begins. May be less than [f][Self::f] for inverted cubes. This
+    /// is probably in the same coordinate space as [f][Self::f].
+    #[derivative(Hash = "ignore")]
+    t: [f64; 3],
+    /// The cube's inflate scale. This is equivalent to subtracting this value from each number
+    /// in [f][Self::f] and adding it to each value in [t][Self::t], except it doesn't affect
+    /// Blockbench's generated UVs.
+    #[serde(default)]
+    #[derivative(Hash = "ignore")]
+    inf: f64,
+  },
+  /// A mesh, which supports freely adding and moving faces at the expense of file size.
+  Mesh {
+    /// Data for meshes. To be honest, I'm surprised that Figura didn't flatten this struct.
+    mesh_data: MeshData,
+  },
 }
 
 /// Maps each side of something (such as a cube) to an object.
 #[derive(Debug, Serialize, Deserialize, Hash)]
 #[serde(deny_unknown_fields)]
 pub struct Sided<S> {
-    /// The north face.
-    pub n: Option<S>,
-    /// The south face.
-    pub s: Option<S>,
-    /// The upward face.
-    pub u: Option<S>,
-    /// The downward face.
-    pub d: Option<S>,
-    /// The west face.
-    pub w: Option<S>,
-    /// The east face.
-    pub e: Option<S>,
+  /// The north face.
+  pub n: Option<S>,
+  /// The south face.
+  pub s: Option<S>,
+  /// The upward face.
+  pub u: Option<S>,
+  /// The downward face.
+  pub d: Option<S>,
+  /// The west face.
+  pub w: Option<S>,
+  /// The east face.
+  pub e: Option<S>,
 }
 
 /// Texture and UV information for each face of a cube.
@@ -328,26 +415,26 @@ pub struct Sided<S> {
 #[derive(Debug, Serialize, Deserialize, Derivative)]
 #[derivative(Hash)]
 pub struct Face {
-    /// The texture ID in [Textures::data].
-    pub tex: usize,
-    /// The UV information (presumably `[x0, y0, x1, y1]`, but I haven't confirmed this). Ignored
-    /// when hashing.
-    #[derivative(Hash = "ignore")]
-    pub uv: [f64; 4],
-    /// How the face is rotated. Ignored when hashing.
-    #[serde(default)]
-    #[derivative(Hash = "ignore")]
-    pub rot: f64,
+  /// The texture ID in [Textures::data].
+  pub tex: usize,
+  /// The UV information (presumably `[x0, y0, x1, y1]`, but I haven't confirmed this). Ignored
+  /// when hashing.
+  #[derivative(Hash = "ignore")]
+  pub uv: [f64; 4],
+  /// How the face is rotated. Ignored when hashing.
+  #[serde(default)]
+  #[derivative(Hash = "ignore")]
+  pub rot: f64,
 }
 
 impl Into<crate::bbmodel::Face> for Face {
-    fn into(self) -> crate::bbmodel::Face {
-        crate::bbmodel::Face {
-            rotation: self.rot,
-            texture: self.tex.into(),
-            uv: self.uv,
-        }
+  fn into(self) -> crate::bbmodel::Face {
+    crate::bbmodel::Face {
+      rotation: self.rot,
+      texture: self.tex.into(),
+      uv: self.uv,
     }
+  }
 }
 
 /// Texture and vertex information for meshes. Figura stores this in a horrifying way that makes it
@@ -357,34 +444,34 @@ impl Into<crate::bbmodel::Face> for Face {
 #[derivative(Hash)]
 #[serde(deny_unknown_fields)]
 pub struct MeshData {
-    /// The X, Y, and Z position of each vertex, consecutively. These are not considered for
-    /// hashing.
-    #[derivative(Hash = "ignore")]
-    pub vtx: Box<[f64]>,
-    /// The texture ID (see [Textures::data]) left-shifted 4, plus the number of vertices in the
-    /// face.
-    pub tex: Box<[u16]>,
-    /// The face list. The type of this field depends on the number of elements in
-    /// [`vtx`][Self::vtx], since the designers of this format hate people.
-    pub fac: Fac,
-    /// UVs, aka hell. These are not considered for hashing.
-    #[derivative(Hash = "ignore")]
-    pub uvs: Box<[f64]>,
+  /// The X, Y, and Z position of each vertex, consecutively. These are not considered for
+  /// hashing.
+  #[derivative(Hash = "ignore")]
+  pub vtx: Box<[f64]>,
+  /// The texture ID (see [Textures::data]) left-shifted 4, plus the number of vertices in the
+  /// face.
+  pub tex: Box<[u16]>,
+  /// The face list. The type of this field depends on the number of elements in
+  /// [`vtx`][Self::vtx], since the designers of this format hate people.
+  pub fac: Fac,
+  /// UVs, aka hell. These are not considered for hashing.
+  #[derivative(Hash = "ignore")]
+  pub uvs: Box<[f64]>,
 }
 
 #[allow(missing_docs)]
 #[derive(Debug, Serialize, Deserialize, Clone, Hash)]
 #[serde(untagged)]
 pub enum Fac {
-    U8(Vec<i8>),
-    U16(Vec<i16>),
-    U32(Vec<i32>),
+  U8(Vec<i8>),
+  U16(Vec<i16>),
+  U32(Vec<i32>),
 }
 
 impl Default for ModelData {
-    fn default() -> Self {
-        Self::Group {}
-    }
+  fn default() -> Self {
+    Self::Group {}
+  }
 }
 
 /// A parent type determined by Figura. Although usually the parent type can be determined based on
@@ -393,49 +480,49 @@ impl Default for ModelData {
 #[derive(Debug, Serialize, Deserialize, Hash)]
 #[allow(missing_docs)]
 pub enum ParentType {
-    /// No parent type — follows parent's rotations.
-    None,
+  /// No parent type — follows parent's rotations.
+  None,
 
-    // Body
-    Head,
-    Body,
-    LeftArm,
-    RightArm,
-    LeftLeg,
-    RightLeg,
-    LeftElytra,
-    RightElytra,
-    Cape,
+  // Body
+  Head,
+  Body,
+  LeftArm,
+  RightArm,
+  LeftLeg,
+  RightLeg,
+  LeftElytra,
+  RightElytra,
+  Cape,
 
-    // Misc
-    World,
-    Hud,
-    Camera,
-    Skull,
-    Portrait,
-    Arrow,
-    Trident,
-    Item,
+  // Misc
+  World,
+  Hud,
+  Camera,
+  Skull,
+  Portrait,
+  Arrow,
+  Trident,
+  Item,
 
-    // Held
-    LeftItemPivot,
-    RightItemPivot,
-    LeftSpyglassPivot,
-    RightSpyglassPivot,
-    LeftParrotPivot,
-    RightParrotPivot,
+  // Held
+  LeftItemPivot,
+  RightItemPivot,
+  LeftSpyglassPivot,
+  RightSpyglassPivot,
+  LeftParrotPivot,
+  RightParrotPivot,
 
-    // Armor
-    HelmetItemPivot,
-    HelmetPivot,
-    ChestplatePivot,
-    LeftShoulderPivot,
-    RightShoulderPivot,
-    LeggingsPivot,
-    LeftLeggingPivot,
-    RightLeggingPivot,
-    LeftBootPivot,
-    RightBootPivot,
-    LeftElytraPivot,
-    RightElytraPivot,
+  // Armor
+  HelmetItemPivot,
+  HelmetPivot,
+  ChestplatePivot,
+  LeftShoulderPivot,
+  RightShoulderPivot,
+  LeggingsPivot,
+  LeftLeggingPivot,
+  RightLeggingPivot,
+  LeftBootPivot,
+  RightBootPivot,
+  LeftElytraPivot,
+  RightElytraPivot,
 }
