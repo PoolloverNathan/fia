@@ -11,7 +11,8 @@
 
 use derivative::Derivative;
 use quartz_nbt::{serde::Array, NbtTag};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::hash::Hash;
@@ -112,13 +113,19 @@ pub struct Metadata {
   /// The avatar's UUID, for some reasom?
   #[serde(default)]
   pub uuid: String,
-  /// Author(s) of the model. If unspecified, is the single author `"?"`.
+  /// Author(s) of the model, separated by newlines. If unspecified, is the single author `"?"`.
   #[serde(default)]
-  pub authors: Authors,
+  pub authors: String,
   /// The avatar's color (used for e.g. UI theming and the Figura mark). This should ideally be a
   /// hex code, but Figura may accept certain color names.
-  #[serde(default)]
-  pub color: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub color: Option<String>,
+  /// Avatar's background color. Read from JSON and completely unused.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub bg: Option<String>,
+  #[allow(missing_docs)]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub id: Option<String>,
   /// The display name of the avatar. Rarely used in Figura.
   #[serde(default)]
   pub name: String,
@@ -131,21 +138,56 @@ pub struct Metadata {
   pub ver: String,
 }
 
-/// Represents the author or authors of an avatar. Figura, for some strange reason, differentiates
-/// between the single-author and multi-author case, so I preserve this distinction when
-/// deserializing avatars.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Authors {
-  /// One author, or the pseudoauthor `"?"`.
-  Author(String),
-  /// Multiple authors.
-  Authors(Vec<String>),
+/// Avatar metadata as stored in avatar.json. Used for serialization.
+#[derive(Default, Debug, Serialize, Deserialize)]
+pub struct JsonMetadata {
+  /// The name of the avatar displayed in the picker; defaults to the avatar folder.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub name: Option<String>,
+  /// The description of this avatar for the sidebar.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub description: Option<String>,
+  /// A single author. Wrapped into a single element of [authors].
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub author: Option<String>,
+  /// The target Figura version of this avatar; defaults to the Figura version loading this avatar.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub version: Option<String>,
+  /// The color of this avatar for Figura UI accent or the Figura mark.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub color: Option<String>,
+  /// Unused in base Figura, but preserved nonetheless.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub background: Option<String>,
+  /// Unused in base Figura; seeminly for avatar loading?
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub id: Option<String>,
+
+  /// A list of authors. Mutually exclusive with [author].
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub authors: Vec<String>,
+  /// A list of scripts to execute automatically. If [None], all scripts will be executed in alphabetical order.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub autoScripts: Option<Vec<String>>,
+  /// A list of animations (usually looping) to play automatically.
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub autoAnims: Vec<String>,
+  /// A list of texture names to delete from the avatar. I'm currently unsure what happens to faces with ignored textures.
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub ignoredTextures: Vec<String>,
+  /// List of glob patterns to load and store arbitrary files from the avatar folder. This may be used for *shenanigans*: see the Colormagic library.
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub resources: Vec<String>,
+
+  /// Map of [ModelPart] paths (with groups separated by dots) to [Customizations].
+  #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+  pub customizations: HashMap<String, Customization>,
 }
-impl Default for Authors {
-  fn default() -> Self {
-    Authors::Authors(vec![])
-  }
+
+/// A customization allows modifying the behavior of a model part in a manner that dissociates it from its imported Blockbench element. The [Unpack](crate::Action::Unpack) task may generate customizations for models that are impossible to represent in base Blockbench.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Customization {
+  // TODO
 }
 
 fn return_true() -> bool {
@@ -437,35 +479,62 @@ impl Into<crate::bbmodel::Face> for Face {
   }
 }
 
-/// Texture and vertex information for meshes. Figura stores this in a horrifying way that makes it
-/// difficult to handle from structs. I doubt the comments in the source code are even correct —
-/// I'm too scared to go through this shit. May the odds be ever in your favor.
-#[derive(Debug, Serialize, Deserialize, Clone, Derivative)]
+/// Texture and vertex information for meshes. Figura stores this in a very compact manner, but
+/// this makes proper interaction from Rust code difficult. Use the
+#[derive(Debug, Clone, Serialize, Derivative)]
 #[derivative(Hash)]
-#[serde(deny_unknown_fields)]
 pub struct MeshData {
   /// The X, Y, and Z position of each vertex, consecutively. These are not considered for
   /// hashing.
   #[derivative(Hash = "ignore")]
-  pub vtx: Box<[f64]>,
+  pub vtx: Vec<f64>,
   /// The texture ID (see [Textures::data]) left-shifted 4, plus the number of vertices in the
   /// face.
-  pub tex: Box<[u16]>,
-  /// The face list. The type of this field depends on the number of elements in
-  /// [`vtx`][Self::vtx], since the designers of this format hate people.
-  pub fac: Fac,
-  /// UVs, aka hell. These are not considered for hashing.
+  pub tex: Vec<u16>,
+  /// List of faces. These values are indexes into [`vtx`](Self::vtx); their significance after that is lost to me.
+  pub fac: Vec<u32>,
+  /// UV vertexes. These are not considered for hashing.
   #[derivative(Hash = "ignore")]
-  pub uvs: Box<[f64]>,
+  pub uvs: Vec<f64>,
+}
+
+mod mesh {
+  use super::MeshData;
+  struct Vertex {}
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MeshDataDelegate {
+  pub vtx: Vec<f64>,
+  pub tex: Vec<u16>,
+  pub fac: Fac,
+  pub uvs: Vec<f64>,
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Serialize, Deserialize, Clone, Hash)]
+#[derive(Deserialize)]
 #[serde(untagged)]
-pub enum Fac {
-  U8(Vec<i8>),
-  U16(Vec<i16>),
-  U32(Vec<i32>),
+enum Fac {
+  U8(Vec<u8>),
+  U16(Vec<u16>),
+  U32(Vec<u32>),
+}
+
+impl<'de> Deserialize<'de> for MeshData {
+  fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    let data = MeshDataDelegate::deserialize(deserializer)?;
+    Ok(MeshData {
+      vtx: data.vtx,
+      tex: data.tex,
+      fac: match data.fac {
+        Fac::U8(x) => x.into_iter().map(|x| x.into()).collect(),
+        Fac::U16(x) => x.into_iter().map(|x| x.into()).collect(),
+        Fac::U32(x) => x.into(),
+      },
+      uvs: data.uvs,
+    })
+  }
 }
 
 impl Default for ModelData {

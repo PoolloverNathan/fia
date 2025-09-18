@@ -82,6 +82,27 @@ where
   }
 }
 
+/// List of avatar fields to unpack or skip unpacking.
+#[derive(Args, Clone, Debug, PartialEq, Eq)]
+#[command(next_help_heading = "Unpack Filters")]
+pub struct UnpackFilter {
+  /// Whether to unpack textures.
+  #[arg(short = 'T', long, default_value = "true")]
+  pub textures: bool,
+  /// Whether to unpack scripts.
+  #[arg(short = 'S', long, default_value = "true")]
+  pub scripts: bool,
+  /// Whether to unpack models.
+  #[arg(short = 'M', long, default_value = "true")]
+  pub models: bool,
+  /// Whether to unpack resources.
+  #[arg(short = 'R', long, default_value = "true")]
+  pub resources: bool,
+  /// Whether to unpack avatar metadata (`avatar.json`).
+  #[arg(short = 'F', long, default_value = "true")]
+  pub manifest: bool,
+}
+
 /// Set of modifications to perform to avatar data.
 #[derive(Args, Clone, Debug, PartialEq, Eq)]
 #[command(next_help_heading = "Editing Options")]
@@ -104,6 +125,10 @@ pub struct MoonModifications {
   /// Delete a texture.
   #[arg(short = 's', long, value_name = "NAME")]
   pub remove_texture: Vec<String>,
+  /// Reformat avatar scripts for readability.
+  #[arg(short = 'u', long)]
+  #[cfg_attr(not(feature = "stylua"), arg(hide = true))]
+  pub format_scripts: bool,
 }
 
 impl MoonModifications {
@@ -115,27 +140,15 @@ impl MoonModifications {
       edit_script,
       remove_script,
       remove_texture,
+      format_scripts,
     } = self;
     if add_author.len() > 0 {
-      let authors: &mut moon::Authors = &mut moon.metadata.authors;
-      // normalize
-      let vec: &mut Vec<String> = match authors {
-        moon::Authors::Authors(ref mut vec) => vec,
-        moon::Authors::Author(_) => {
-          let mut new_authors = moon::Authors::Authors(vec![]);
-          // ah, the ol' authorship switcharoo
-          let moon::Authors::Author(a) = std::mem::replace(authors, moon::Authors::Authors(vec![]))
-          else {
-            unreachable!()
-          };
-          let moon::Authors::Authors(ref mut vec) = authors else {
-            unreachable!()
-          };
-          vec.push(a);
-          vec
-        }
-      };
-      vec.extend(add_author);
+      if moon.metadata.authors == "" || moon.metadata.authors == "?" {
+        moon.metadata.authors = add_author.join("\n");
+      } else {
+        moon.metadata.authors += "\n";
+        moon.metadata.authors += &add_author.join("\n");
+      }
     }
     for name in remove_script {
       if let None = moon.scripts.remove(&name) {
@@ -156,6 +169,38 @@ impl MoonModifications {
       let mut buf = vec![];
       File::open(path)?.read_to_end(&mut buf);
       moon.textures.src.insert(name, buf.into());
+    }
+    if format_scripts {
+      #[cfg(feature = "stylua")]
+      for (name, script) in &mut moon.scripts {
+        use stylua_lib::*;
+        match std::str::from_utf8(script.as_mut()) {
+          Ok(text) => {
+            match format_code(
+              text,
+              Config {
+                syntax: LuaVersion::Lua52,
+                sort_requires: SortRequiresConfig { enabled: false },
+                indent_type: IndentType::Spaces,
+                indent_width: 2,
+                ..Config::default()
+              },
+              None,
+              OutputVerification::Full,
+            ) {
+              Ok(code) => *script = Array::from(code.into_bytes()),
+              Err(e) => eprintln!("failed to format script {name}: {e}"),
+            }
+          }
+          Err(e) => eprintln!("cannot decode script {name}: {e}"),
+        }
+      }
+      #[cfg(not(feature = "stylua"))]
+      {
+        eprintln!(
+          "warning: stylua is disabled; rebuild with `--features stylua` to format scripts"
+        );
+      }
     }
     Ok(())
   }
@@ -304,8 +349,8 @@ pub enum Action {
     #[arg()]
     paths: Option<Vec<String>>,
     /// Writes the raw model blob to a file.
-    #[arg(short = 'm', long)]
-    dump_models: Option<Option<String>>,
+    #[command(flatten)]
+    filter: UnpackFilter,
   },
   /// Rewrite, recompress, and optionally modify an avatar file.
   Repack {
@@ -526,7 +571,7 @@ fn main() -> io::Result<()> {
       modify,
       paths,
       folder,
-      mut dump_models,
+      filter,
     } => {
       let file = File::open(file)?;
       // FIXME: don't panic
@@ -567,41 +612,64 @@ fn main() -> io::Result<()> {
           }
         };
       };
-      for (path, data) in &src {
-        add_if_whitelisted!(&(path.replace('.', "/") + ".png") => &data.as_ref());
-      }
-      for (path, data) in &scripts {
-        add_if_whitelisted!(&(path.replace('.', "/") + ".lua") => &data.as_ref());
-      }
-      let mut dump_model_guard: Option<(String, Vec<u8>)> = None;
-      if let Some(path) = dump_models.take() {
-        let path = path.unwrap_or_else(|| String::from("models.nbt"));
-        if let Some(models) = &models {
-          use flate2::Compression;
-          use quartz_nbt::io::Flavor;
-          use quartz_nbt::serde as qs;
-          let mut data = vec![];
-          qs::serialize_into(
-            &mut data,
-            &models,
-            Some("models"),
-            Flavor::GzCompressedWith(Compression::default()),
-          );
-          dump_model_guard = Some((path, data));
+      if filter.textures {
+        for (path, data) in &src {
+          add_if_whitelisted!(&(path.replace('.', "/") + ".png") => &data.as_ref());
         }
       }
-      if let Some((path, data)) = &dump_model_guard {
-        add_if_whitelisted!(&path => &data);
-      }
-      if let Some(models) = models {
-        for part in models.chld.into_vec() {
-          add_if_whitelisted!(&(part.name.clone() + ".bbmodel") => {
-              let Ok(hier) = part.hierarchy() else { panic!("you smell bad") };
-              let model: BBModel = hier.into();
-              let json = serde_json::to_string(&model).expect("failed to process model root");
-              json.leak().as_bytes()
-          });
+      if filter.scripts {
+        for (path, data) in &scripts {
+          add_if_whitelisted!(&(path.replace('.', "/") + ".lua") => &data.as_ref());
         }
+      }
+      if filter.models {
+        if let Some(models) = models {
+          for part in models.chld.into_vec() {
+            add_if_whitelisted!(&(part.name.clone() + ".bbmodel") => {
+                let Ok(hier) = part.hierarchy() else { panic!("you smell bad") };
+                let model: BBModel = hier.into();
+                let json = serde_json::to_string(&model).expect("failed to process model root");
+                json.leak().as_bytes()
+            });
+          }
+        }
+      }
+      if filter.resources {
+        for (path, data) in &resources {
+          add_if_whitelisted!(&path => &data.as_ref());
+        }
+      }
+      let mut filter_holder: Option<String> = None;
+      if filter.manifest {
+        let (author, authors) = {
+          let v = metadata.authors.split("\n").collect::<Vec<_>>();
+          match v[..] {
+            ["?"] => (None, vec![]),
+            [x] => (Some(metadata.authors), vec![]),
+            _ => (None, v.into_iter().map(String::from).collect()),
+          }
+        };
+        let data = serde_json::to_string_pretty(&moon::JsonMetadata {
+          name: Some(metadata.name),
+          description: Some(metadata.description),
+          author: author,
+          version: Some(metadata.ver),
+          color: metadata.color,
+          background: metadata.bg,
+          id: None,
+          authors,
+          autoScripts: None, // TODO
+          autoAnims: vec![], // TODO
+          ignoredTextures: vec![],
+          resources: if filter.resources {
+            resources.keys().cloned().collect()
+          } else {
+            vec![]
+          },
+          customizations: HashMap::default(), // TODO: generate customizations as needed
+        })
+        .unwrap();
+        add_if_whitelisted!("avatar.json" => filter_holder.insert(data).as_bytes());
       }
       // if models.chld.len() > 0 {
       // eprintln!("warning: extracting models not supported yet")
@@ -638,7 +706,8 @@ fn main() -> io::Result<()> {
         }
       }
       eprintln!(
-        "wrote {written} files{}",
+        "wrote {written} file{}{}",
+        if written == 1 { "" } else { "s" },
         if omitted > 0 {
           format!(" ({omitted} omitted)")
         } else {

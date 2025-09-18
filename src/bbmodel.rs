@@ -301,35 +301,17 @@ impl Hierarchy {
     for element in &self.elements {
       match element.extra {
         ElementType::Cube { ref faces, .. } => {
-          if let Face {
-            texture: Some(tex), ..
-          } = faces.north {
-            set.insert(tex);
-          }
-          if let Face {
-            texture: Some(tex), ..
-          } = faces.east {
-            set.insert(tex);
-          }
-          if let Face {
-            texture: Some(tex), ..
-          } = faces.south {
-            set.insert(tex);
-          }
-          if let Face {
-            texture: Some(tex), ..
-          } = faces.west {
-            set.insert(tex);
-          }
-          if let Face {
-            texture: Some(tex), ..
-          } = faces.up {
-            set.insert(tex);
-          }
-          if let Face {
-            texture: Some(tex), ..
-          } = faces.down {
-            set.insert(tex);
+          for face in [
+            &faces.north,
+            &faces.east,
+            &faces.south,
+            &faces.west,
+            &faces.up,
+            &faces.down,
+          ] {
+            if let Some(tex) = face.texture {
+              set.insert(tex);
+            }
           }
         }
         ElementType::Mesh { ref faces, .. } => {
@@ -481,12 +463,12 @@ pub struct MeshFace {
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Faces {
-	pub north: Face,
-	pub east: Face,
-	pub south: Face,
-	pub west: Face,
-	pub up: Face,
-	pub down: Face,
+  pub north: Face,
+  pub east: Face,
+  pub south: Face,
+  pub west: Face,
+  pub up: Face,
+  pub down: Face,
 }
 
 /// The texture and UV position of a face.
