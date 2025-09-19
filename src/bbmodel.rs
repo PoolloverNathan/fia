@@ -50,38 +50,63 @@ pub struct Resolution {
   width: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Derivative)]
+#[derivative(Default)]
 #[serde(deny_unknown_fields)]
-struct Texture {
-  folder: String,
-  frame_interpolate: Option<bool>,
-  layers: Any,
-  frame_order: String,
-  frame_order_type: String,
-  frame_time: usize,
-  group: Option<String>,
-  height: usize,
-  id: String,
-  internal: bool,
-  layers_enabled: bool,
-  mode: Any,
-  name: String,
-  namespace: String,
-  particle: bool,
-  path: String,
-  relative_path: Option<String>,
-  render_mode: String,
-  render_sides: String,
-  saved: bool,
-  source: String,
-  sync_to_project: String,
+pub struct Texture {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub folder: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub frame_interpolate: Option<bool>,
+  pub layers: Any,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub frame_order: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub frame_order_type: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub frame_time: Option<usize>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub group: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub height: Option<usize>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub id: Option<String>,
+  pub internal: bool,
+  pub layers_enabled: bool,
+  pub mode: Any,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub namespace: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub particle: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub path: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub relative_path: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub render_mode: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub render_sides: Option<String>,
   #[serde(default)]
-  use_as_default: bool,
-  uuid: String,
-  uv_height: usize,
-  uv_width: usize,
-  visible: bool,
-  width: usize,
+  pub saved: bool,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub source: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub sync_to_project: Option<String>,
+  #[serde(default)]
+  #[derivative(Default(value="true"))]
+  pub use_as_default: bool,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub uuid: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub uv_height: Option<usize>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub uv_width: Option<usize>,
+  #[serde(default = "return_true")]
+  pub visible: bool,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub width: Option<usize>,
 }
 
 /// Contains metadata about this model important for making sense of the contents.

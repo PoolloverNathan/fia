@@ -65,6 +65,7 @@
           fenixPkgs.combine [
             hostToolchain.rustc
             hostToolchain.cargo
+            hostToolchain.rust-src
             (fenixPkgs.targets.${target}.toolchainOf toolchainData).rust-std
           ];
         #{{{2 tagTrace

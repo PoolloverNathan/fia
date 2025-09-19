@@ -595,7 +595,7 @@ fn main() -> io::Result<()> {
       let mut moon = get_moon(file).expect("no opening moon");
       modify.apply(&mut moon);
       let Moon {
-        textures: moon::Textures { src, .. },
+        textures: moon::Textures { src, data:tex_names, .. },
         scripts,
         animations,
         models,
@@ -643,10 +643,26 @@ fn main() -> io::Result<()> {
         if let Some(models) = models {
           for part in models.chld.into_vec() {
             add_if_whitelisted!(&(part.name.clone() + ".bbmodel") => {
-                let Ok(hier) = part.hierarchy() else { panic!("you smell bad") };
-                let model: BBModel = hier.into();
-                let json = serde_json::to_string(&model).expect("failed to process model root");
-                json.leak().as_bytes()
+              let Ok(hier) = part.hierarchy() else { panic!("hierarchy creation failed") };
+              let mut model: BBModel = hier.into();
+              model.textures = tex_names.into_iter().enumerate().map(|(i, d)| {
+                let png: &Vec<u8> = src.get(&d.d).expect("Invalid model, data references missing src!").as_ref();
+                let w = u32::from_be_bytes(png[16..20].try_into().unwrap()) as usize;
+                let h = u32::from_be_bytes(png[20..24].try_into().unwrap()) as usize;
+                bbmodel::Texture {
+                  id: Some(i.to_string()),
+                  name: Some(d.d.clone()),
+                  relative_path: Some(d.d.replace(".", "/") + ".png"),
+                  saved: true,
+                  width: Some(w),
+                  height: Some(h),
+                  uv_width: Some(w),
+                  uv_height: Some(h),
+                  ..Default::default()
+                }
+              }).collect();
+              let json = serde_json::to_string(&model).expect("failed to process model root");
+              json.leak().as_bytes()
             });
           }
         }
