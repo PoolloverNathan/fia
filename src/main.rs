@@ -502,7 +502,7 @@ fn main() -> io::Result<()> {
         if let Some(models) = moon.models {
           println!("\n\x1b[1;4mModels\x1b[21;22;24m");
           use moon::{ModelData, ModelPart};
-          fn recurse_tree(part: &ModelPart, indent: usize) {
+          fn recurse_tree(part: &ModelPart, verbose: bool, indent: usize) {
             for _ in 0..indent {
               print!("  ")
             }
@@ -516,12 +516,29 @@ fn main() -> io::Result<()> {
               ),
               ModelData::Group {} => println!("• {}", part.name),
             }
-            for m in &part.chld {
-              recurse_tree(m, indent + 1);
+            if verbose {
+              for m in &part.chld {
+                recurse_tree(m, verbose, indent + 1);
+              }
+            } else if indent < 3 {
+              for m in part.chld.iter().take(8) {
+                recurse_tree(m, verbose, indent + 1);
+              }
+              if part.chld.len() > 8 {
+                for _ in 0..indent {
+                  print!("  ")
+                }
+                println!("  \x1b[37m[...]\x1b[0m")
+              }
+            } else if (!part.chld.is_empty()) {
+              for _ in 0..indent {
+                print!("  ")
+              }
+              println!("  \x1b[37m[...]\x1b[0m")
             }
           }
           for m in &models.chld {
-            recurse_tree(m, 0);
+            recurse_tree(m, verbose, 0);
           }
         }
       }
